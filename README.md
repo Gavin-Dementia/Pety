@@ -74,6 +74,10 @@ Have an animated GIF instead of a hand-sliced sprite sheet?
 only ever plays sprite sheets (GIF gives no frame-level control, which
 the reaction animations' auto-return-to-idle depends on), so this is a
 one-time import step, not a runtime format. See `docs/setup.md` §9.
+`scripts/pixel-art-downscale.ps1` shrinks art without the muddy/blurred
+colors ordinary resizing produces (§10) — written from scratch after a
+licensing check ruled out the third-party options, see `docs/roadmap.md`
+Milestone 18.
 
 Editing the **currently active** species' `species.json` or sprites while
 the app is running takes effect automatically within about a second — no

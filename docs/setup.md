@@ -84,7 +84,8 @@ pety/
 ├── build-resources/           electron-builder icons (icon.ico/.icns/.png)
 ├── docs/                      this file, roadmap.md, bugs.md
 ├── scripts/                   PowerShell tooling: placeholder-art generators,
-│                              gif-to-species-animation.ps1 (GIF → sprite sheet)
+│                              gif-to-species-animation.ps1 (GIF → sprite sheet),
+│                              pixel-art-downscale.ps1 (mode-color smart resize)
 ├── src/
 │   ├── main/                  Electron main process — only place Node/Electron
 │   │                          APIs are imported
@@ -207,7 +208,26 @@ the change automatically.
 
 ---
 
-## 10. Common issues
+## 10. Downscaling art for pixel-art use
+
+`scripts/pixel-art-downscale.ps1` shrinks an image by picking the most
+common ("mode") color per block instead of blending/averaging like
+ordinary resizing — keeps edges crisp and colors saturated instead of
+muddy. Alpha-aware (`-MinOpaqueCoverage`, `-AlphaThreshold`).
+
+```powershell
+.\scripts\pixel-art-downscale.ps1 -InputPath source.png -OutputPath idle.png -TargetWidth 32 -TargetHeight 32
+```
+
+Written from scratch rather than pulling in a third-party tool — see
+`docs/roadmap.md` Milestone 18 for why (a licensing check caught a
+would-be dependency with no usable license, and the remaining alternative
+needed a Rust toolchain install this project was specifically trying to
+avoid).
+
+---
+
+## 11. Common issues
 
 **Sprite doesn't render, no console error**
 Almost certainly the `file://`-from-`http://localhost` issue described in

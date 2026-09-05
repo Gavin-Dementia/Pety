@@ -515,6 +515,60 @@ in the repo.
 
 ---
 
+## Milestone 18 — Pixel-art downscale tool (and a licensing mistake, corrected)
+
+**Status: Complete, genuinely verified**
+
+User wanted a "smart" downscale (better than plain resize for pixel art —
+doesn't blur/muddy colors) they could get onto their machine without
+installing anything one-off, ideally as a git submodule of an existing
+open-source project.
+
+**A real mistake happened here, worth recording plainly rather than
+quietly fixing:** the first candidate evaluated,
+`github.com/MidFord/BetterPixelArtDownscale`, was added as a git submodule
+*before* checking its license. It turned out to have no LICENSE file
+anywhere in the repo, and its own `javascript/package.json` explicitly
+declares `"license": "UNLICENSED"` — the author deliberately signaling no
+rights are granted, not an oversight. This is the same class of error
+flagged repeatedly elsewhere in this project's history for art assets
+("it's visible on GitHub" ≠ "licensed for reuse") — it should have been
+checked before adding, not after. Immediately deinit'd and removed the
+submodule (`git submodule deinit -f` + `git rm` + cleaned
+`.git/modules/`); nothing was ever committed or pushed, so no trace
+remains. A second candidate, `github.com/gametorch/image_to_pixel_art_wasm`,
+was checked properly this time (fetched and quoted the actual MIT LICENSE
+file content before touching git at all) — its license was fine, but it
+requires a Rust + wasm-pack toolchain to build from source (no pre-built
+`pkg/` output shipped), which fails the "no one-off installs" requirement
+for an unrelated reason. Neither ended up usable.
+
+**Resolution:** wrote `scripts/pixel-art-downscale.ps1` from scratch
+(System.Drawing, same toolchain as every other `scripts/*.ps1` file, zero
+new dependencies, zero licensing questions since it's wholly original).
+Implements mode-color block downscaling — instead of blending/averaging
+every source pixel in a block (which is what ordinary resizing does, and
+what muddies pixel-art color and blurs edges), it picks whichever color
+actually appears *most often* in each block. Alpha-aware via a
+`-MinOpaqueCoverage` threshold (default 0.5): a block outputs transparent
+unless at least half its pixels clear `-AlphaThreshold`, so a single stray
+opaque pixel in an otherwise-transparent region doesn't get promoted to
+full-strength output noise.
+
+**Verified:** generated a 32×32 synthetic test image (four solid-color
+quadrants — red/green/blue/mostly-transparent-with-one-stray-yellow-pixel)
+and downscaled to 4×4 (block-aligned, so each output pixel should map
+cleanly to one quadrant). All 16 output pixels matched expectations
+exactly, including the transparent quadrant correctly staying transparent
+despite the stray opaque pixel — confirming the coverage-threshold logic
+actually works, not just the color-mode logic. Also caught and fixed a
+real bug in the process: `Resolve-Path` returns a `PathInfo` object, not a
+plain string, which `New-Object System.Drawing.Bitmap` doesn't accept —
+fixed with `.Path`. Separately re-verified a non-square, non-integer scale
+factor (32×32 → 5×5) completes without error.
+
+---
+
 ## Open / not yet started
 
 See `bugs.md` for the full list of deferred/open items — interactive
