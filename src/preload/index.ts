@@ -1,5 +1,12 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import { IPC, type PetAPI, type Rect, type LoadSpeciesPayload } from '../shared/ipcContract';
+import {
+  IPC,
+  type PetAPI,
+  type Rect,
+  type LoadSpeciesPayload,
+  type SetStatPayload,
+  type IncrementStatPayload,
+} from '../shared/ipcContract';
 
 const petAPI: PetAPI = {
   setClickThrough(ignore: boolean) {
@@ -19,6 +26,15 @@ const petAPI: PetAPI = {
   },
   getPlaytimeMs(): Promise<number> {
     return ipcRenderer.invoke(IPC.GET_PLAYTIME);
+  },
+  getStats(): Promise<Record<string, number>> {
+    return ipcRenderer.invoke(IPC.GET_STATS);
+  },
+  setStat(payload: SetStatPayload) {
+    ipcRenderer.send(IPC.SET_STAT, payload);
+  },
+  incrementStat(payload: IncrementStatPayload) {
+    ipcRenderer.send(IPC.INCREMENT_STAT, payload);
   },
   onSpeciesLoaded(callback: (species: LoadSpeciesPayload) => void) {
     ipcRenderer.on(IPC.LOAD_SPECIES, (_event, species: LoadSpeciesPayload) => callback(species));

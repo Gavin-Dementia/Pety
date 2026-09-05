@@ -2,11 +2,14 @@ import type { PetRenderer } from './PetRenderer';
 import type { BehaviorController } from './BehaviorController';
 import type { SpeciesAnimationDef } from '../shared/speciesSchema';
 import { pointInRect, type Vec2 } from './types';
+import { classifyPointerRelease } from './gestureClassifier';
 
 const DRAG_PROMOTION_THRESHOLD_PX = 6;
+const LONG_PRESS_THRESHOLD_MS = 400;
 
 interface PendingPointerDown {
   startPos: Vec2;
+  startTime: number;
 }
 
 /**
@@ -16,10 +19,14 @@ interface PendingPointerDown {
  * to start a drag. This is the region-based approximation described in the
  * plan (vs. per-pixel alpha sampling, a documented future enhancement).
  *
- * pointerdown doesn't immediately start a drag — it's ambiguous with a poke
- * (a quick click) until the pointer either moves past
- * DRAG_PROMOTION_THRESHOLD_PX (promotes to a drag) or releases without
- * moving that far (a poke, if the "poke" interaction is unlocked).
+ * pointerdown doesn't immediately start a drag — it's ambiguous until the
+ * pointer either moves past DRAG_PROMOTION_THRESHOLD_PX (promotes to a
+ * drag) or releases without moving that far. A release that was never
+ * promoted is classified by how long it was held (see
+ * gestureClassifier.ts) into a quick "poke" or a held "pet" — two
+ * independently unlockable interactions (via isInteractionUnlocked),
+ * both currently triggering the same reaction; more gesture types
+ * (double-click, right-click) would follow this same pattern.
  */
 export class InputController {
   private isDragging = false;
@@ -93,7 +100,7 @@ export class InputController {
 
   private onPointerDown(e: PointerEvent): void {
     if (!this.isHovering || !this.currentAnimation) return;
-    this.pending = { startPos: this.getPointerPos(e) };
+    this.pending = { startPos: this.getPointerPos(e), startTime: performance.now() };
   }
 
   private onPointerUp(): void {
@@ -105,8 +112,12 @@ export class InputController {
     }
 
     if (this.pending) {
+      const heldMs = performance.now() - this.pending.startTime;
       this.pending = null;
-      if (this.isInteractionUnlocked('poke')) {
+
+      const gesture = classifyPointerRelease(heldMs, LONG_PRESS_THRESHOLD_MS);
+      const interactionId = gesture === 'longpress' ? 'pet' : 'poke';
+      if (this.isInteractionUnlocked(interactionId)) {
         this.behavior.react();
       }
     }

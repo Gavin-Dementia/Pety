@@ -1,9 +1,10 @@
 # Window Pet Roadmap
 
 This document tracks the planned development stages of the project,
-updated against what was actually built (vs. originally planned). The
-original 12-milestone plan is in `C:\Users\tugav\.claude\plans\federated-herding-storm.md`;
-this file is the living, updated version of it.
+updated against what was actually built (vs. originally planned).
+`C:\Users\tugav\.claude\plans\federated-herding-storm.md` holds only the
+*most recently drafted* plan (each new planning session overwrites it) —
+this file is the durable, cumulative record across all of them.
 
 ---
 
@@ -153,7 +154,7 @@ on this machine — a real, reproducible bug (not a missing-icon problem
 this time): electron-builder tries to extract a macOS code-signing tool
 bundle that contains symlinks, and this Windows account lacks the
 privilege to create them. Needs Developer Mode or an elevated terminal to
-actually fix — see `bugs.md` item 3 for the full trace. `icon.icns`
+actually fix — see `bugs.md` item 2 for the full trace. `icon.icns`
 (macOS) still doesn't exist; `package:mac`/`package:linux` untried
 entirely.
 
@@ -173,15 +174,20 @@ doesn't exist yet), no `v0.1.0` tag cut.
 
 ## Milestone 12 — Explicitly out of scope for now
 
-Unchanged from the original plan: settings UI, multi-species picker,
-multi-monitor roaming, per-pixel click-through (bounding-rect approximation
-is current behavior), hunger/growth stat persistence, auto-update.
+Updated from the original plan — **multi-species picker moved out of this
+list and into Milestone 14 (done)**; hunger/growth stat *persistence
+plumbing* is also done (Milestone 14's stats framework), though the actual
+gameplay numbers remain out of scope. Still out of scope: a general
+settings UI (species switching lives in the tray only, no dedicated
+window), multi-monitor roaming, per-pixel click-through (bounding-rect
+approximation is current behavior), auto-update, live (non-restart)
+species switching.
 
 ---
 
 ## Milestone 13 — Playtime-gated progression (more idle behaviors + interactions over time)
 
-**Status: Core mechanism verified (persistence + tier logic); interaction gating unverified — see `bugs.md` #1/#5**
+**Status: Core mechanism verified (persistence + tier logic); interaction gating unverified — see `bugs.md` #1/#4**
 
 User-requested feature: the longer the pet has been open, the more
 autonomous idle behaviors and interactions unlock — chosen metric is
@@ -236,27 +242,131 @@ whether a tier "should" have unlocked yet.
 
 ---
 
+## Milestone 14 — Multi-species picker, stats scaffolding, richer interaction framework, README
+
+**Status: Complete and genuinely human-verified (not just automated) — see below**
+
+Four related asks, all "build the framework now, specifics later." Full
+design in the plan file (see the intro note above for why that link is
+now stale — the design lived at
+`C:\Users\tugav\.claude\plans\federated-herding-storm.md` at the time this
+was built).
+
+Implemented:
+- **Multi-species.** `speciesLoader.ts` now resolves species from two
+  roots: bundled (`assets/species/`, in the repo) and local
+  (`app.getPath('userData')/species/`, auto-created on startup, **outside
+  the repo entirely** — not just gitignored, no relationship to the
+  checkout at all). `listAvailableSpecies()` scans both; a local id
+  overrides a same-id bundled one. `pet-asset://` protocol URLs gained a
+  source segment (`pet-asset://<bundled|local>/<id>/<path>`) so sprites
+  resolve from the right root either way.
+- **Species switching**, restart-based by design (not a live hot-swap —
+  simpler and avoids tearing down `BehaviorController`/`InputController`/
+  `ProgressionController` mid-session for a rarely-used action): the
+  tray's new "Species" submenu (radio items, checked = current selection)
+  persists the choice via `src/main/appSettings.ts` and calls
+  `app.relaunch()` + `app.exit()`.
+- **Stats framework**, deliberately inert: `src/main/statsTracker.ts`
+  (generic `get`/`set`/`increment`/`getAll` over `userData/stats.json`,
+  write-through on mutation) plus `GET_STATS`/`SET_STAT`/`INCREMENT_STAT`
+  IPC and `window.petAPI` exposure. Nothing in the renderer calls any of
+  it yet — no hunger decay, no growth formula, no default stat keys. That
+  was explicitly deferred by the user ("實際數值再說"); building a
+  renderer-side wrapper with no real caller would have been speculative.
+- **Richer interactions.** `InputController` now classifies a
+  non-promoted pointer release by *how long* it was held (via the new
+  pure `src/renderer/gestureClassifier.ts`, unit tested) into a quick
+  `poke` or a held `pet` — two independently unlockable interaction ids
+  through the same `isInteractionUnlocked` mechanism Milestone 13 already
+  had. `placeholder`'s `species.json` staggers them across its two demo
+  tiers (poke at 60s, pet at 300s) so the demo shows two interactions
+  gating independently rather than both at once.
+- `README.md` rewritten to reflect actual current functionality, with a
+  new "Species & art" section spelling out the bundled-vs-local
+  distinction and explicitly naming the local folder as where
+  non-redistributable personal art belongs.
+
+**Verification — genuinely real this time, not synthetic-input-blocked,
+and it found two more real bugs along the way:**
+
+Tray/species-switching UI is native OS chrome, not part of the click-
+through-forwarded `BrowserWindow` content, so it isn't subject to
+Milestone 4/13's synthetic-mouse-input limitation — confirmed by
+successfully driving real right-clicks against the tray icon. Full
+verification chain:
+
+1. Created a throwaway species under the local folder, right-clicked the
+   tray icon, opened the real context menu, confirmed the Species submenu
+   correctly listed both `Blob (bundled)` and `Test Local Species (local)`
+   with the right one checked — screenshotted, not assumed.
+2. Clicked the local species under `npm run dev` — this **failed**, but
+   not because switching is broken: `vite-plugin-electron`'s process
+   supervision conflicts with `app.relaunch()`, orphaning processes and
+   killing the dev server (`bugs.md` #5). Not a switching bug, a dev-mode
+   testing-methodology limitation.
+3. Retested against a real packaged build
+   (`release/win-unpacked/Window Pet.exe`, built via `electron-builder
+   --win --dir` which produces the unpacked app without hitting the
+   blocked NSIS step) — and here it worked genuinely end to end: clicking
+   the local species persisted `settings.json`, relaunched into a **new**
+   process, and the sprite visibly changed from the placeholder's blue
+   blob to the test species' purple sprite. Screenshotted before and
+   after.
+4. That packaged-build test surfaced a real bug: **the tray icon was
+   completely absent** in the packaged app (present and working in dev).
+   Root cause: `build-resources/` was never listed in
+   `electron-builder.yml`'s `extraResources`, so `tray-icon.png` simply
+   doesn't exist inside a packaged app — the same class of dev-vs-packaged
+   path bug as the earlier `pet-asset://` fix. Fixed (`bugs.md` "Fixed"),
+   rebuilt, reconfirmed the icon and full menu now work packaged too.
+5. Cleaning up after the switch test surfaced a second real bug:
+   `settings.json` still pointed at the now-deleted throwaway species,
+   which would have crashed the next launch (`loadSpecies()`'s
+   `fs.readFileSync` throwing uncaught). Fixed with a try/catch fallback
+   in `src/main/index.ts` that self-heals the persisted selection back to
+   `placeholder` — verified by deliberately pointing `settings.json` at a
+   nonexistent id and confirming a clean fallback, not a crash.
+
+This also closes the long-open "tray visibility unconfirmed" item for
+good. Throwaway species and build output deleted afterward; nothing about
+either is in the repo.
+
+**Still not verified:** whether `poke`/`pet` actually fire from real mouse
+input on the sprite itself — that path goes through the click-through-
+forwarded window, which synthetic input still can't reach regardless of
+process (dev or packaged). Needs a human. See `bugs.md` #1.
+
+---
+
 ## Open / not yet started
 
-See `bugs.md` for the full list of deferred/open items (interactive
-verification — now confirmed blocked on synthetic input, not just
-untried — tray visibility, packaging icons, macOS/Linux testing) and
-`assets/species/README-ish` gap: the real creature art/IP decision is still
-unresolved — see project memory / `CONTRIBUTING.md`'s art policy.
+See `bugs.md` for the full list of deferred/open items — interactive
+verification (click-through/drag/poke/pet — confirmed blocked on synthetic
+input, not just untried), packaging icons, macOS/Linux testing. Tray
+visibility is now resolved (Milestone 14). The real creature art/IP
+decision is still unresolved — see project memory / `CONTRIBUTING.md`'s
+art policy; the local species folder (Milestone 14) is the sanctioned
+place for personal art in the meantime.
 
-Test coverage: `vitest` covers `PetStateMachine`, `BehaviorController`, and
-`ProgressionController` (all pure renderer-side logic). Not covered:
-`AnimationController`, `InputController`, anything in `src/main`
-(Electron-API-dependent, would need mocking Electron itself — not done
-here).
+Test coverage: `vitest` covers `PetStateMachine`, `BehaviorController`,
+`ProgressionController`, and `gestureClassifier` (all pure renderer-side
+logic). Not covered: `AnimationController`, `InputController`, anything in
+`src/main` (Electron-API-dependent, would need mocking Electron itself —
+not done here; `speciesLoader`'s bundled/local resolution and the tray's
+Species submenu were manually verified instead, see Milestone 14).
 
 ---
 
 ## Long-term goals
 
 - A real creature art pipeline once the IP question is resolved (original
-  designs vs. sourced open-licensed sprite packs)
-- Multi-species picker (tray/settings), so the placeholder isn't the only
-  option a user ever sees
+  designs vs. sourced open-licensed sprite packs) — the local species
+  folder (Milestone 14) already covers personal/non-redistributable art
+  in the meantime
+- Actual stats gameplay (hunger/growth formulas, decay, UI) on top of the
+  now-existing `statsTracker.ts` plumbing
+- Live (non-restart) species switching, if the restart-based UX proves
+  annoying in practice
 - macOS/Linux parity, actually verified on those platforms, not just
   written to match their documented APIs

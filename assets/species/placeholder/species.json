@@ -68,10 +68,10 @@
       "unlockedInteractions": ["poke"]
     },
     {
-      "id": "tier2-sleep",
+      "id": "tier2-sleep-and-pet",
       "unlockAtMs": 300000,
       "unlockedBehaviorStates": ["sleep"],
-      "unlockedInteractions": []
+      "unlockedInteractions": ["pet"]
     }
   ],
   "attribution": {

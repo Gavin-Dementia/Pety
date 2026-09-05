@@ -1,7 +1,12 @@
 import { protocol, net } from 'electron';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { ASSET_PROTOCOL, getAssetsRoot } from './speciesLoader';
+import {
+  ASSET_PROTOCOL,
+  getBundledSpeciesRoot,
+  getLocalSpeciesRoot,
+  type SpeciesSource,
+} from './speciesLoader';
 
 /**
  * Must be called before app.whenReady(). Registers pet-asset:// as a
@@ -19,16 +24,20 @@ export function registerAssetProtocolScheme(): void {
   ]);
 }
 
-/** Must be called after app.whenReady(). Serves files under assets/. */
+/**
+ * Must be called after app.whenReady(). Serves species sprite files from
+ * either root, chosen by the URL's host segment
+ * (pet-asset://<bundled|local>/<id>/<relative path>) — mirrors
+ * speciesLoader's own bundled-vs-local resolution.
+ */
 export function registerAssetProtocolHandler(): void {
-  const assetsRoot = getAssetsRoot();
-
   protocol.handle(ASSET_PROTOCOL, (request) => {
     const url = new URL(request.url);
-    const relativePath = path.join(url.hostname, url.pathname);
-    const resolved = path.normalize(path.join(assetsRoot, relativePath));
+    const source = url.hostname as SpeciesSource;
+    const root = source === 'local' ? getLocalSpeciesRoot() : getBundledSpeciesRoot();
+    const resolved = path.normalize(path.join(root, url.pathname));
 
-    if (!resolved.startsWith(path.normalize(assetsRoot))) {
+    if (!resolved.startsWith(path.normalize(root))) {
       return new Response('Forbidden', { status: 403 });
     }
 

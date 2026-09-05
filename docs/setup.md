@@ -80,7 +80,7 @@ npm run package:win  # requires build-resources/icon.ico — see bugs.md
 
 ```
 pety/
-├── assets/species/<id>/       species.json + sprites/, one dir per creature
+├── assets/species/<id>/       bundled species: species.json + sprites/
 ├── build-resources/           electron-builder icons (icon.ico/.icns/.png)
 ├── docs/                      this file, roadmap.md, bugs.md
 ├── scripts/                   one-off PowerShell generators (placeholder art)
@@ -88,17 +88,22 @@ pety/
 │   ├── main/                  Electron main process — only place Node/Electron
 │   │                          APIs are imported
 │   │   ├── petWindow.ts       transparent/click-through/always-on-top window
-│   │   ├── trayManager.ts     tray icon + menu
-│   │   ├── speciesLoader.ts   loads/validates species.json
+│   │   ├── trayManager.ts     tray icon + menu, incl. Species submenu
+│   │   ├── speciesLoader.ts   bundled+local species discovery/loading
 │   │   ├── assetProtocol.ts   pet-asset:// custom protocol (see bugs.md)
+│   │   ├── progressionTracker.ts  cumulative playtime persistence
+│   │   ├── statsTracker.ts    generic named-stat persistence (framework only)
+│   │   ├── appSettings.ts     small persisted settings store (selected species)
 │   │   ├── ipcHandlers.ts     ipcMain.handle/.on, per ipcContract.ts
 │   │   └── displayBounds.ts   work-area bounds helper
 │   ├── preload/                contextBridge.exposeInMainWorld('petAPI', …)
 │   ├── renderer/                only ever talks through window.petAPI
-│   │   ├── PetStateMachine.ts   idle/walk/dragged/sit/sleep transitions
+│   │   ├── PetStateMachine.ts   idle/walk/dragged/sit/sleep/react transitions
 │   │   ├── AnimationController.ts  sprite-sheet frame playback
-│   │   ├── BehaviorController.ts   random-walk AI, bounds, drag interrupt
-│   │   ├── InputController.ts      pointer events → hover/drag
+│   │   ├── BehaviorController.ts   random-walk AI, bounds, drag/react
+│   │   ├── ProgressionController.ts  tier-crossing logic (pure)
+│   │   ├── InputController.ts      pointer events → hover/drag/poke/pet
+│   │   ├── gestureClassifier.ts    pure click-vs-longpress classification
 │   │   └── PetRenderer.ts          canvas draw
 │   ├── shared/                  types both main and renderer agree on
 │   │   ├── ipcContract.ts
@@ -128,11 +133,27 @@ once real (non-rectangular) art exists.
 **`pet-asset://` exists specifically to dodge a Chromium restriction**, not
 for architectural purity — see `bugs.md`'s writeup. If you add new asset
 types (audio, fonts), route them through the same protocol rather than
-`file://`.
+`file://`. Its host segment (`pet-asset://<bundled|local>/<id>/<path>`)
+picks which species root to resolve from — see §8.
 
 ---
 
-## 7. Common issues
+## 7. Persisted files (userData)
+
+Everything the app persists lives under `app.getPath('userData')` —
+`%APPDATA%/window-pet/` on this Windows dev machine, the platform-standard
+equivalent elsewhere. None of it is part of the git repo.
+
+| File / folder | Written by | Contents |
+|---|---|---|
+| `species/<id>/` | you, manually | local-only species — see README's "Species & art" |
+| `progression.json` | `progressionTracker.ts` | `{"totalPlaytimeMs": number}`, flushed every 10s + on quit |
+| `stats.json` | `statsTracker.ts` | generic `{[key: string]: number}`, write-through on mutation; empty until something actually calls `setStat`/`incrementStat` (nothing does yet — framework only) |
+| `settings.json` | `appSettings.ts` | `{"selectedSpeciesId": string}` currently, write-through on `set` |
+
+---
+
+## 8. Common issues
 
 **Sprite doesn't render, no console error**
 Almost certainly the `file://`-from-`http://localhost` issue described in
@@ -142,8 +163,9 @@ registered (`registerAssetProtocolScheme()` before `app.whenReady()`,
 `sheet` paths start with `pet-asset://`, not `file://`.
 
 **Tray icon not visible**
-Windows collapses new tray icons into the overflow "^" flyout by default —
-check there before assuming the tray failed to create.
+Confirmed working (verified by right-clicking it and opening the Species
+submenu) — but Windows collapses new tray icons into the overflow "^"
+flyout by default, so check there first before assuming anything's wrong.
 
 **`npm run package:win`/`package:mac` fails looking for an icon**
 Expected — `build-resources/icon.ico`/`icon.icns` haven't been generated

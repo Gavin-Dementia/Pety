@@ -8,6 +8,8 @@ files:
 extraResources:
   - from: assets
     to: assets
+  - from: build-resources
+    to: build-resources
 win:
   target:
     - nsis

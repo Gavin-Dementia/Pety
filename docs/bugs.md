@@ -48,21 +48,15 @@ renderer-side event flow in the terminal without attaching DevTools.
 **To verify (needs a human):** `npm run dev`, then: hover the sprite and
 confirm the cursor icon/behavior changes; drag it across the screen (both
 axes); move off the sprite and click a window underneath — it should
-register on that window, not the pet; quick-click (no drag) on the sprite
-once `poke` is unlocked (see item 5 below) and confirm a brief reaction
-animation plays, auto-returning to idle when it finishes.
+register on that window, not the pet; quick-click (`poke`) or press-and-
+hold (`pet`) on the sprite once each is unlocked (see item 5 below) and
+confirm a brief reaction animation plays, auto-returning to idle when it
+finishes. Note: this item is specifically about the click-through-
+forwarded `BrowserWindow` content — the tray and its Species submenu are
+native OS UI, not affected by this limitation, and *have* been genuinely
+verified (see "Fixed" below and item 5).
 
-### 2. Tray icon visibility unconfirmed
-
-`TrayManager` creates a tray icon + menu (show/hide, quit), but it hasn't
-been confirmed visible or clickable. Windows hides new tray icons in the
-overflow "^" flyout by default, which would look identical to "tray
-creation silently failed" from a screenshot alone.
-
-**To verify:** open the overflow flyout, confirm "Window Pet" is there with
-a working Show/Hide Pet + Quit menu.
-
-### 3. Packaging icons — Windows icon closed; `package:win` itself still blocked on this machine; macOS icon still open
+### 2. Packaging icons — Windows icon closed; `package:win` itself still blocked on this machine; macOS icon still open
 
 `build-resources/icon.ico` is now generated
 (`scripts/generate-windows-ico.ps1`, packs the placeholder `icon.png` into
@@ -93,14 +87,14 @@ either grants the symlink privilege. `icon.icns` (macOS) is separately
 still missing — generating it needs `iconutil`/`sips`, only available on
 macOS.
 
-### 4. macOS / Linux never actually run
+### 3. macOS / Linux never actually run
 
 Every macOS-specific call (`setVisibleOnAllWorkspaces`, `app.dock.hide()`)
 and Linux tray behavior note (`StatusNotifierItem` support varies by
 desktop environment) is written to match documented Electron behavior, not
 verified on those platforms. This machine is Windows-only.
 
-### 5. Progression system — unlock logic verified via code+tests+persistence, interaction gating unverified (see item 1)
+### 4. Progression system — unlock logic verified via code+tests+persistence, interaction gating unverified (see item 1)
 
 The playtime-gated progression system (`ProgressionTracker`,
 `ProgressionController`, `species.json`'s `progression` array) has real,
@@ -120,11 +114,33 @@ positive evidence it works:
   `BehaviorController.test.ts`) cover tier-crossing logic and the
   idle-variant pick mechanism directly.
 
-**Not verified:** whether `poke` actually triggers the `react` animation
-end-to-end via real mouse input — blocked on item 1 above (synthetic mouse
-simulation can't exercise this at all, confirmed, not just "not yet
-tried"). A human needs to quick-click the sprite after the 60s mark and
-confirm the reaction plays and auto-returns to idle.
+**Not verified:** whether `poke`/`pet` actually trigger the `react`
+animation end-to-end via real mouse input on the sprite — blocked on item 1
+above (synthetic mouse simulation can't exercise this at all, confirmed,
+not just "not yet tried"). A human needs to try both gestures after their
+respective tiers unlock and confirm the reaction plays and auto-returns to
+idle.
+
+### 5. Species switching untestable under `npm run dev` — must test against a packaged build
+
+While verifying Milestone 14's restart-based species switching (tray click
+→ `appSettings.setSelectedSpeciesId()` → `app.relaunch()` + `app.exit()`),
+the first attempt under `npm run dev` produced 4 orphaned `electron.exe`
+processes and a dead `node`/vite process (log ended with `ERROR: The
+process "18904" not found.`), with no sprite rendering afterward.
+Likely cause: `vite-plugin-electron` supervises/restarts the Electron
+process itself on file changes, and that supervision conflicts with
+Electron's own `app.relaunch()` spawning an independent OS process — the
+new process inherited the dev-server URL via environment but the dev
+server had already gone down.
+
+**Not a bug in the switching mechanism itself** — confirmed by testing
+against `release/win-unpacked/Window Pet.exe` (a real packaged build, no
+vite dev-server dependency) instead, where it worked correctly end to end,
+see "Fixed" below. Just means: **don't test relaunch-based features under
+`npm run dev`**; build (`npm run build && npx electron-builder --win
+--dir`, which produces `win-unpacked` without hitting the blocked
+NSIS-installer step from item 2) and run the packaged exe directly.
 
 ---
 
@@ -159,3 +175,68 @@ no dev-vs-prod branch to keep in sync.
 placeholder blob renders correctly, on top of other windows, confirming
 both the asset load and the transparent/always-on-top window behavior at
 once.
+
+### Tray icon visibility — now genuinely confirmed (previously an open item)
+
+**Symptom:** no way to confirm the tray icon/menu existed or worked short
+of a human looking at it — screenshots alone can't distinguish "icon
+created but hidden in the overflow flyout" from "tray creation silently
+failed."
+
+**Resolution:** turns out tray/menu interaction is native OS UI, not part
+of the click-through-forwarded `BrowserWindow` (unlike the sprite itself —
+see item 1), so it's *not* subject to the synthetic-input limitation.
+Located the icon in the taskbar overflow flyout by exact pixel color match
+(`(90,160,230)`, the tray icon's fill color), then drove real
+`SetCursorPos`/`mouse_event` right-clicks against it successfully —
+confirming synthetic input works fine for normal native controls; it's
+specifically Electron's click-through-forwarding path that filters it.
+Screenshotted the actual native context menu (Hide Pet / Species / About /
+Quit) and its Species submenu, correctly listing species with the right
+one checked. No longer an open item.
+
+### Tray icon failed to load silently in a packaged build
+
+**Symptom:** found while verifying species switching against
+`release/win-unpacked/Window Pet.exe` — the tray icon was completely
+absent from the taskbar overflow (not even a generic placeholder icon),
+though the app otherwise ran fine and the sprite rendered correctly.
+
+**Root cause:** `trayManager.ts` resolved the icon via `path.join(__dirname,
+'../../build-resources/tray-icon.png')` — correct in dev, where `dist/`
+and `build-resources/` are siblings in the repo, but `electron-builder.yml`
+never listed `build-resources/` under `extraResources` (only `assets/`
+was), so it simply doesn't exist anywhere inside a packaged app. `nativeImage.
+createFromPath()` on a nonexistent path returns an empty image, which the
+existing `icon.isEmpty() ? nativeImage.createEmpty() : icon` fallback
+silently accepted — no crash, no error, just an invisible/absent tray
+icon. The exact same class of bug as the earlier `file://`/`pet-asset://`
+issue: a path that happens to work in dev and silently doesn't in a
+packaged build.
+
+**Fix:** added `build-resources` to `electron-builder.yml`'s
+`extraResources`, and gave `trayManager.ts` a `getBuildResourcesRoot()`
+helper mirroring `speciesLoader.ts`'s existing dev-vs-packaged pattern
+(`app.isPackaged ? process.resourcesPath : app.getAppPath()`).
+
+**Verified:** rebuilt `win-unpacked`, relaunched, confirmed the tray icon
+(and its full menu) now appear correctly in the packaged build too.
+
+### Persisted-but-missing species crashed startup instead of falling back
+
+**Symptom:** found while cleaning up after a species-switch test — deleted
+a local species folder that `settings.json` still pointed to as the
+selected species, and the next launch would have crashed
+(`loadSpecies()`'s `fs.readFileSync` throwing `ENOENT`, uncaught).
+
+**Fix:** `src/main/index.ts` now wraps the startup `loadSpecies(speciesId)`
+call in try/catch; on failure it logs the error, resets the persisted
+selection back to the bundled `placeholder` species (self-healing, so this
+doesn't recur every launch), and loads that instead.
+
+**Verified:** pointed `settings.json` at a nonexistent species id and
+launched the packaged build directly — confirmed the console logged
+`Failed to load species "nonexistent-species", falling back to
+"placeholder": Error: ENOENT: ...`, `settings.json` self-healed back to
+`{"selectedSpeciesId":"placeholder"}`, and the placeholder sprite rendered
+normally. No crash.
