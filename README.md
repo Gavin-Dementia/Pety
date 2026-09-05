@@ -36,7 +36,8 @@ colored blobs) so the engine can be built and tested before real art exists
   yet
 - Pluggable "species" content system — bundled species ship in the repo;
   you can also import your own locally without ever touching it (see
-  below)
+  below), and edits to the active species live-reload automatically
+  while the app runs — no restart, no update server
 
 ## Getting started
 
@@ -68,6 +69,11 @@ The tray's **Species** submenu lists both, switching relaunches the app
 into your choice. A local species with the same id as a bundled one takes
 priority, so you can override bundled content locally too.
 
+Editing the **currently active** species' `species.json` or sprites while
+the app is running takes effect automatically within about a second — no
+restart needed. This is local file watching only, not a remote/update
+mechanism (see `docs/setup.md` §8).
+
 ## Building a package
 
 ```
@@ -77,7 +83,7 @@ npm run package:win   # or package:mac / package:linux
 `build-resources/icon.ico` is generated (`scripts/generate-windows-ico.ps1`).
 `package:win`'s installer step is currently blocked on this dev machine by
 a Windows privilege issue unrelated to the app itself — see
-`docs/bugs.md` #3 for the fix. `build-resources/icon.icns` (macOS) still
+`docs/bugs.md` #2 for the fix. `build-resources/icon.icns` (macOS) still
 needs generating on an actual Mac.
 
 ## Art & IP

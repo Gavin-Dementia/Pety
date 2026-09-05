@@ -36,15 +36,30 @@ export class InputController {
   private currentAnimation: SpeciesAnimationDef | null = null;
   private currentScale = 1;
 
+  // Bound once so destroy() can remove exactly the listeners attach() added
+  // — an inline arrow passed straight to addEventListener can't be removed
+  // later, which would leak a duplicate listener set on every species
+  // reload (see main.ts's onSpeciesLoaded, which recreates this class).
+  private readonly boundOnPointerMove = (e: PointerEvent) => this.onPointerMove(e);
+  private readonly boundOnPointerDown = (e: PointerEvent) => this.onPointerDown(e);
+  private readonly boundOnPointerUp = () => this.onPointerUp();
+
   constructor(
     private canvas: HTMLCanvasElement,
     private renderer: PetRenderer,
     private behavior: BehaviorController,
     private isInteractionUnlocked: (id: string) => boolean = () => false,
   ) {
-    canvas.addEventListener('pointermove', (e) => this.onPointerMove(e));
-    canvas.addEventListener('pointerdown', (e) => this.onPointerDown(e));
-    window.addEventListener('pointerup', () => this.onPointerUp());
+    canvas.addEventListener('pointermove', this.boundOnPointerMove);
+    canvas.addEventListener('pointerdown', this.boundOnPointerDown);
+    window.addEventListener('pointerup', this.boundOnPointerUp);
+  }
+
+  /** Removes this instance's event listeners. Call before discarding it. */
+  destroy(): void {
+    this.canvas.removeEventListener('pointermove', this.boundOnPointerMove);
+    this.canvas.removeEventListener('pointerdown', this.boundOnPointerDown);
+    window.removeEventListener('pointerup', this.boundOnPointerUp);
   }
 
   setCurrentAnimation(def: SpeciesAnimationDef, scale: number): void {

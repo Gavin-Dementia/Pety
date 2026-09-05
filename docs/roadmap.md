@@ -339,6 +339,68 @@ process (dev or packaged). Needs a human. See `bugs.md` #1.
 
 ---
 
+## Milestone 15 — Live species reload while editing
+
+**Status: Complete, genuinely verified**
+
+Follow-up request after Milestone 14: the user explicitly does **not**
+want a remote/networked asset-update mechanism (no live service, single
+personal user) — just wants editing their own local species'
+`species.json`/sprites to show up without restarting the app. Scoped down
+accordingly: pure local file watching, nothing networked.
+
+Implemented:
+- `speciesLoader.ts`'s new `watchSpecies(id, onChange)` watches the active
+  species' own directory recursively (`fs.watch(dir, {recursive:true})` —
+  directory-level, not per-file, specifically so it survives editors that
+  save via replace-the-file rather than in-place write) and calls back
+  debounced (300ms, editors often fire several fs events per save).
+  Recursive `fs.watch` is only supported on macOS/Windows in Node — fine
+  given this project is Windows-only verified so far (`bugs.md` #3).
+- `index.ts` wires this to the currently active species (started right
+  after the initial load) and re-sends `LOAD_SPECIES` on change — but
+  deliberately does **not** reuse the startup fallback/self-heal logic
+  here: a transient invalid save (mid-write, briefly malformed JSON)
+  should be skipped and retried next change, not silently switch the
+  user's selected species. That self-healing behavior stays
+  startup-only.
+
+**Two real bugs found and fixed while building this** (both were latent
+and harmless until this feature gave them a way to actually trigger):
+- `InputController` added its pointer listeners via inline arrow
+  functions with no stored reference — fine when `onSpeciesLoaded` only
+  ever fired once (app startup), but live reload fires it repeatedly,
+  which would have stacked duplicate listener sets on the same canvas
+  forever (each poke/drag firing multiple times). Fixed: listeners are
+  now bound once and stored, `InputController.destroy()` removes them,
+  and `main.ts` calls it on the outgoing instance before constructing the
+  replacement.
+- `PetRenderer`'s image cache is keyed by URL string with no invalidation
+  — reloading the *same* species produced byte-identical sheet URLs, so
+  the renderer kept showing the pre-edit sprite even though a fresh
+  `species.json` had correctly arrived. Fixed two ways together:
+  `loadSpecies()` now appends a cache-busting `?v=<timestamp>` query
+  param to every resolved sheet URL (ignored by `assetProtocol.ts`'s
+  handler, which only reads the URL's host+pathname) so a reload can
+  never collide with a previous URL at any caching layer, and
+  `PetRenderer.clearCache()` (called from `main.ts` on every
+  `onSpeciesLoaded`) drops old entries so the cache doesn't grow
+  unbounded over a long editing session.
+
+**Verified end-to-end against a packaged build** (not `npm run dev` —
+same dev-mode/vite-plugin-electron caveat as Milestone 14's switching
+test): launched with a local test species selected, screenshotted the
+purple placeholder-derived sprite, overwrote its `idle.png` on disk with a
+different (green) sprite while the app kept running, and screenshotted
+again ~1s later — the sprite had changed color with no restart, no tray
+interaction, nothing but the file write. Separately re-verified that
+editing `species.json` itself (bumped `spriteScale` 3→5) also live-reloads
+— screenshotted a visibly larger sprite afterward. Cleanup (test species
+deleted, `settings.json` reset) confirmed no trace left in the repo or in
+a state that would affect a normal launch.
+
+---
+
 ## Open / not yet started
 
 See `bugs.md` for the full list of deferred/open items — interactive

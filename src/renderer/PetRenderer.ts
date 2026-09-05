@@ -29,6 +29,17 @@ export class PetRenderer {
     return img;
   }
 
+  /**
+   * Drops all cached Image elements. Call when a species (re)loads —
+   * without this, editing a local species' sprite file while the app is
+   * running (see speciesLoader.ts's watchSpecies) would keep showing the
+   * stale decoded bitmap for that URL even though a fresh species.json
+   * was correctly re-sent, since this cache is keyed by URL string alone.
+   */
+  clearCache(): void {
+    this.imageCache.clear();
+  }
+
   /** Returns the on-screen bounds of the sprite at `position`, for hit-testing. */
   getSpriteBounds(def: SpeciesAnimationDef, position: Vec2, scale: number): Rect {
     return {

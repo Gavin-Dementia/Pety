@@ -26,9 +26,18 @@ async function main(): Promise<void> {
   let progression: ProgressionController | null = null;
 
   window.petAPI.onSpeciesLoaded((loaded) => {
+    // A reload (live species-file editing, not just the initial load) means
+    // this fires more than once — always tear down the previous
+    // InputController's listeners and drop cached sprite images (a stale
+    // decoded bitmap would otherwise keep showing under the same URL) before
+    // replacing everything.
+    input?.destroy();
+    renderer.clearCache();
+
     species = loaded;
+    const position = behavior?.getPosition() ?? startPosition;
     progression = new ProgressionController(loaded.progression ?? [], initialPlaytimeMs);
-    behavior = new BehaviorController(stateMachine, loaded.behavior, startPosition, () =>
+    behavior = new BehaviorController(stateMachine, loaded.behavior, position, () =>
       progression!.getUnlockedIdleVariants(),
     );
     input = new InputController(canvas, renderer, behavior, (id) =>

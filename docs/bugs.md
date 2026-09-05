@@ -240,3 +240,56 @@ launched the packaged build directly — confirmed the console logged
 "placeholder": Error: ENOENT: ...`, `settings.json` self-healed back to
 `{"selectedSpeciesId":"placeholder"}`, and the placeholder sprite rendered
 normally. No crash.
+
+### InputController listener leak, latent until Milestone 15 gave it a way to actually fire
+
+**Symptom:** none yet observed in practice — found by inspection while
+designing live species reload (Milestone 15), which would have exposed it
+immediately (every reload firing progressively more duplicate pokes/drags).
+
+**Root cause:** `InputController`'s constructor passed inline arrow
+functions straight to `addEventListener`, with no reference kept to ever
+`removeEventListener` them. Harmless as long as `main.ts`'s
+`onSpeciesLoaded` handler (which constructs a fresh `InputController`)
+only ever fired once per app lifetime — true before Milestone 15, false
+after.
+
+**Fix:** listeners are now bound once and stored on the instance; a new
+`InputController.destroy()` removes exactly those. `main.ts` calls
+`input?.destroy()` on the outgoing instance before constructing its
+replacement in `onSpeciesLoaded`.
+
+**Verified:** indirectly, via Milestone 15's live-reload testing working
+correctly across multiple successive reloads (sprite swap, then a
+`species.json` edit) without any duplicated/multiplied reaction behavior.
+No dedicated regression test for "N reloads → still exactly one listener
+set" — worth adding if reload-heavy editing sessions become common.
+
+### PetRenderer's image cache never invalidated, hiding live species-file edits
+
+**Symptom:** found while verifying Milestone 15 — overwrote a running
+local species' `idle.png` with a visibly different sprite; `species.json`
+correctly reloaded and re-sent (confirmed via the fix above working), but
+the on-screen sprite never changed.
+
+**Root cause:** `PetRenderer`'s `imageCache` `Map` is keyed by the sheet's
+URL string alone, with no eviction. Since `loadSpecies()` previously
+produced the exact same URL for the same species on every call, the
+cached `HTMLImageElement` (and its already-decoded, now-stale bitmap) was
+reused indefinitely — reloading the species config did nothing for
+already-cached sprites.
+
+**Fix, two parts together:** `loadSpecies()` now appends a cache-busting
+`?v=<Date.now()>` query parameter to every resolved sheet URL (harmless —
+`assetProtocol.ts`'s handler only reads the URL's host and pathname, never
+the query string), so a reload can never produce a URL that collides with
+a previous one at any caching layer, browser-level or our own. Separately,
+`PetRenderer.clearCache()` (called from `main.ts` on every
+`onSpeciesLoaded`) drops all cached entries on every load, so the map
+doesn't grow unbounded over a long local-editing session.
+
+**Verified:** screenshotted a running packaged build showing the
+placeholder-derived purple test sprite, overwrote its `idle.png` on disk,
+screenshotted again ~1s later — sprite visibly changed to the new (green)
+image, no restart. Confirmed twice more: a `species.json`-only edit
+(`spriteScale` 3→5) also reflected live (visibly larger sprite).

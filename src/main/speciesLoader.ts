@@ -82,6 +82,36 @@ function findSpeciesDir(id: string): { dir: string; source: SpeciesSource } {
   return { dir: bundledDir, source: 'bundled' };
 }
 
+const WATCH_DEBOUNCE_MS = 300;
+
+/**
+ * Watches a loaded species' own directory (recursively, so sprite edits
+ * under sprites/ are caught too) and calls onChange (debounced — editors
+ * often fire several fs events per save) whenever anything in it changes.
+ * Returns an unwatch function. Directory-level (not per-file) watching
+ * specifically so it survives editors that save via replace-the-file
+ * rather than in-place write, which can silently orphan a watch on the
+ * old file handle.
+ *
+ * Node's recursive fs.watch is only supported on macOS/Windows — fine for
+ * now given this project is only verified on Windows (see docs/bugs.md),
+ * but a Linux dev would need per-subdirectory watches instead.
+ */
+export function watchSpecies(id: string, onChange: () => void): () => void {
+  const { dir } = findSpeciesDir(id);
+  let debounceTimer: NodeJS.Timeout | null = null;
+
+  const watcher = fs.watch(dir, { recursive: true }, () => {
+    if (debounceTimer) clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(onChange, WATCH_DEBOUNCE_MS);
+  });
+
+  return () => {
+    if (debounceTimer) clearTimeout(debounceTimer);
+    watcher.close();
+  };
+}
+
 /**
  * Loads <root>/<id>/species.json (local root takes precedence over
  * bundled on a matching id), validates it, and resolves each animation's
@@ -98,12 +128,20 @@ export function loadSpecies(id: string): SpeciesConfig {
     throw new Error(`Invalid species config at ${configPath}`);
   }
 
+  // Cache-busting query param: without it, re-loading the same species
+  // (see watchSpecies) would produce byte-identical sheet URLs, and an
+  // <img> whose src is set to the exact same string again doesn't
+  // re-fetch — the renderer would keep showing the pre-edit sprite. The
+  // query string is otherwise ignored (assetProtocol.ts resolves purely
+  // from the URL's host+pathname).
+  const cacheBust = Date.now();
+
   const resolved: SpeciesConfig = {
     ...parsed,
     animations: Object.fromEntries(
       Object.entries(parsed.animations).map(([state, def]) => [
         state,
-        { ...def, sheet: `${ASSET_PROTOCOL}://${source}/${id}/${def.sheet}` },
+        { ...def, sheet: `${ASSET_PROTOCOL}://${source}/${id}/${def.sheet}?v=${cacheBust}` },
       ]),
     ),
   };

@@ -146,14 +146,40 @@ equivalent elsewhere. None of it is part of the git repo.
 
 | File / folder | Written by | Contents |
 |---|---|---|
-| `species/<id>/` | you, manually | local-only species — see README's "Species & art" |
+| `species/<id>/` | you, manually | local-only species — see README's "Species & art". While that species is the active one, edits to it live-reload automatically (no restart) — see §9. |
 | `progression.json` | `progressionTracker.ts` | `{"totalPlaytimeMs": number}`, flushed every 10s + on quit |
 | `stats.json` | `statsTracker.ts` | generic `{[key: string]: number}`, write-through on mutation; empty until something actually calls `setStat`/`incrementStat` (nothing does yet — framework only) |
 | `settings.json` | `appSettings.ts` | `{"selectedSpeciesId": string}` currently, write-through on `set` |
 
 ---
 
-## 8. Common issues
+## 8. Live species reload while editing
+
+While the app is running, the **active** species' own folder (bundled or
+local — whichever it actually loaded from) is watched recursively; any
+change to `species.json` or anything under `sprites/` triggers an
+automatic reload (debounced ~300ms) with no restart needed. This is pure
+local file watching (`src/main/speciesLoader.ts`'s `watchSpecies()`) —
+deliberately **not** a networked/remote update mechanism (there's no
+manifest, no server, nothing downloaded), since this project has no live
+service and no need for one.
+
+Practical implications:
+- Edit sprites or `species.json` for whichever species you're currently
+  running (check the tray's Species submenu for which one that is) and
+  see it reflected within about a second.
+- A save that briefly leaves `species.json` invalid mid-write (some
+  editors do this) is silently skipped and retried on the next change —
+  it will **not** switch you back to the placeholder species or touch
+  `settings.json`. That self-heal-on-failure behavior is startup-only
+  (see `docs/bugs.md`'s "Persisted-but-missing species" entry).
+- Switching to a *different* species (via the tray) still restarts the
+  app, as before — this only covers editing the one you're already
+  running.
+
+---
+
+## 9. Common issues
 
 **Sprite doesn't render, no console error**
 Almost certainly the `file://`-from-`http://localhost` issue described in

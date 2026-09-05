@@ -1,8 +1,13 @@
-import { app } from 'electron';
+import { app, type BrowserWindow } from 'electron';
 import { PetWindowManager } from './petWindow';
 import { TrayManager } from './trayManager';
 import { registerIpcHandlers, sendSpeciesLoaded } from './ipcHandlers';
-import { loadSpecies, listAvailableSpecies, ensureLocalSpeciesRoot } from './speciesLoader';
+import {
+  loadSpecies,
+  listAvailableSpecies,
+  ensureLocalSpeciesRoot,
+  watchSpecies,
+} from './speciesLoader';
 import { registerAssetProtocolScheme, registerAssetProtocolHandler } from './assetProtocol';
 import { ProgressionTracker } from './progressionTracker';
 import { StatsTracker } from './statsTracker';
@@ -17,6 +22,47 @@ const trayManager = new TrayManager();
 const progressionTracker = new ProgressionTracker();
 const statsTracker = new StatsTracker();
 const appSettings = new AppSettings();
+let unwatchSpecies: (() => void) | null = null;
+
+/**
+ * Loads the requested species, falling back (and self-healing the
+ * persisted selection) if it no longer exists — e.g. its local folder was
+ * deleted, or (for reloads) a species.json edit briefly leaves it invalid
+ * mid-save.
+ */
+function loadSpeciesWithFallback(id: string) {
+  try {
+    return loadSpecies(id);
+  } catch (error) {
+    console.error(`Failed to load species "${id}", falling back to "${FALLBACK_SPECIES_ID}":`, error);
+    if (id !== FALLBACK_SPECIES_ID) appSettings.setSelectedSpeciesId(FALLBACK_SPECIES_ID);
+    return loadSpecies(FALLBACK_SPECIES_ID);
+  }
+}
+
+/**
+ * Watches the active species' own folder and re-sends it on any change —
+ * lets a user iterate on their local species' species.json/sprites without
+ * restarting the app. Not a remote-update mechanism (deliberately out of
+ * scope, see docs/roadmap.md) — purely local file watching for editing
+ * convenience.
+ *
+ * Deliberately does NOT use loadSpeciesWithFallback/touch the persisted
+ * selection here: a save that's briefly invalid mid-write (partial JSON,
+ * an editor's atomic-replace window) should just be skipped and retried
+ * on the next change, not silently switch the user's selected species —
+ * that self-healing behavior is only appropriate at startup.
+ */
+function watchActiveSpecies(window: BrowserWindow, speciesId: string): void {
+  unwatchSpecies?.();
+  unwatchSpecies = watchSpecies(speciesId, () => {
+    try {
+      sendSpeciesLoaded(window, loadSpecies(speciesId));
+    } catch (error) {
+      console.error(`Species "${speciesId}" reload failed, keeping the last good version:`, error);
+    }
+  });
+}
 
 function bootstrap(): void {
   registerAssetProtocolHandler();
@@ -43,19 +89,8 @@ function bootstrap(): void {
 
   window.webContents.once('did-finish-load', () => {
     const speciesId = process.env.PET_SPECIES_ID ?? appSettings.getSelectedSpeciesId();
-    let species;
-    try {
-      species = loadSpecies(speciesId);
-    } catch (error) {
-      // The persisted/requested species may no longer exist (e.g. its local
-      // folder was deleted after being selected) — fall back rather than
-      // crash on startup, and self-heal the persisted choice so this
-      // doesn't recur every launch.
-      console.error(`Failed to load species "${speciesId}", falling back to "${FALLBACK_SPECIES_ID}":`, error);
-      appSettings.setSelectedSpeciesId(FALLBACK_SPECIES_ID);
-      species = loadSpecies(FALLBACK_SPECIES_ID);
-    }
-    sendSpeciesLoaded(window, species);
+    sendSpeciesLoaded(window, loadSpeciesWithFallback(speciesId));
+    watchActiveSpecies(window, speciesId);
   });
 }
 
@@ -69,4 +104,5 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', () => {
   progressionTracker.stop();
+  unwatchSpecies?.();
 });
