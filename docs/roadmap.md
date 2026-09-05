@@ -450,6 +450,71 @@ poke/pet/drag (`bugs.md` #1). Needs a human.
 
 ---
 
+## Milestone 17 — GIF-to-sprite-sheet import tool
+
+**Status: Complete, genuinely verified end-to-end**
+
+Follow-up to the earlier asset-format discussion (`docs/roadmap.md`
+history / conversation record): the engine only ever plays sprite-sheet
+PNGs — GIF gives JS no frame-level control at all, which
+`AnimationController.isFinished()` depends on for the poke/pet/doubleclick
+reaction's auto-return-to-idle, so native GIF playback was never on the
+table. What *is* useful: letting GIF be a source format that gets
+converted at import time, so existing GIF art doesn't need manual frame
+slicing.
+
+Implemented `scripts/gif-to-species-animation.ps1` (System.Drawing, same
+toolchain as the other `scripts/*.ps1` files, no new dependency):
+- Loads a GIF, extracts every frame via `Image.SelectActiveFrame` into one
+  horizontal sprite-sheet PNG under `<SpeciesDir>/sprites/<State>.png`
+- Reads the GIF's own per-frame delay (property tag `0x5100`) and averages
+  it into one `fps` value (species.json only supports one fps per
+  animation, not per-frame timing) — overridable with `-Fps`
+- Adds/updates that one `animations.<State>` entry in an existing
+  species' `species.json`, leaving everything else untouched
+- `-NoLoop` for one-shot animations (e.g. `react`)
+
+**A real bug found and fixed in the tool itself:** Windows PowerShell
+5.1's `Set-Content -Encoding utf8` writes a UTF-8 **BOM**, which Node's
+`JSON.parse` (what `speciesLoader.ts` actually uses) rejects outright —
+`SyntaxError: Unexpected token '﻿'`. Confirmed this would have broken
+every species.json the tool touched, via a real Node repro before fixing.
+Fixed by writing with `[System.IO.File]::WriteAllText` and an explicit
+no-BOM `UTF8Encoding` instead of `Set-Content`.
+
+**Verification, genuinely end-to-end:**
+1. Needed a real animated GIF to test against and didn't have one handy,
+   so hand-rolled a minimal GIF89a writer (raw bytes, a "Clear-code-before-
+   every-pixel" LZW trick to sidestep code-width bookkeeping) — kept in
+   the session's scratchpad, **not** part of this repo, since it exists
+   purely to generate a 3-frame red/green/blue test fixture. Hit and fixed
+   two real PowerShell bugs while building *that* throwaway tool (nested
+   functions don't mutate outer-scope variables like JS closures; a
+   function returning an array through the success stream silently
+   unwraps `byte[]` into `Object[]`, breaking `BinaryWriter.Write()`'s
+   overload match) — neither bug touches the actual deliverable script,
+   which doesn't do byte-level GIF encoding, only decoding via the
+   standard/well-tested System.Drawing decoder.
+2. Ran `gif-to-species-animation.ps1` against the resulting valid 3-frame
+   test GIF (200ms/frame): confirmed the produced sprite sheet was
+   12×4px (3 frames × 4px) with the correct red/green/blue pixel at each
+   frame's offset, `species.json` correctly gained `frameCount:3,
+   frameWidth:4, frameHeight:4, fps:5` (1000/200 — exactly right), valid
+   JSON with no BOM, other fields untouched.
+3. Selected that species as active, launched a real packaged build,
+   screenshotted three times ~220ms apart: the on-screen sprite visibly
+   cycled through red → green → blue (exactly the 3 encoded colors, no
+   others) and moved between shots (autonomous walk behavior still
+   working on GIF-sourced content) — the full pipeline (GIF → sprite
+   sheet → `species.json` → engine load → animation playback → autonomous
+   behavior) confirmed working, not just "the file looks right in
+   isolation."
+
+Test species and settings reset afterward; nothing from this testing is
+in the repo.
+
+---
+
 ## Open / not yet started
 
 See `bugs.md` for the full list of deferred/open items — interactive

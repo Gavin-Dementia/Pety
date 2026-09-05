@@ -69,6 +69,12 @@ The tray's **Species** submenu lists both, switching relaunches the app
 into your choice. A local species with the same id as a bundled one takes
 priority, so you can override bundled content locally too.
 
+Have an animated GIF instead of a hand-sliced sprite sheet?
+`scripts/gif-to-species-animation.ps1` converts it — the engine itself
+only ever plays sprite sheets (GIF gives no frame-level control, which
+the reaction animations' auto-return-to-idle depends on), so this is a
+one-time import step, not a runtime format. See `docs/setup.md` §9.
+
 Editing the **currently active** species' `species.json` or sprites while
 the app is running takes effect automatically within about a second — no
 restart needed. This is local file watching only, not a remote/update

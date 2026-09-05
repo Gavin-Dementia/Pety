@@ -83,7 +83,8 @@ pety/
 ├── assets/species/<id>/       bundled species: species.json + sprites/
 ├── build-resources/           electron-builder icons (icon.ico/.icns/.png)
 ├── docs/                      this file, roadmap.md, bugs.md
-├── scripts/                   one-off PowerShell generators (placeholder art)
+├── scripts/                   PowerShell tooling: placeholder-art generators,
+│                              gif-to-species-animation.ps1 (GIF → sprite sheet)
 ├── src/
 │   ├── main/                  Electron main process — only place Node/Electron
 │   │                          APIs are imported
@@ -179,7 +180,34 @@ Practical implications:
 
 ---
 
-## 9. Common issues
+## 9. Importing a GIF as an animation
+
+The engine only plays sprite-sheet PNGs (see §6 — GIF gives no frame-level
+control, which the poke/pet/doubleclick reaction's auto-return-to-idle
+depends on). If you already have an animated GIF, convert it instead of
+hand-slicing frames:
+
+```powershell
+.\scripts\gif-to-species-animation.ps1 `
+  -GifPath C:\art\my-creature-idle.gif `
+  -SpeciesDir "$env:APPDATA\window-pet\species\my-species" `
+  -State idle
+```
+
+This writes `sprites/idle.png` (a horizontal sprite sheet built from every
+GIF frame) and adds/updates that `animations.idle` entry in the target
+species' `species.json` — `frameWidth`/`frameHeight`/`frameCount` read
+from the GIF itself, `fps` averaged from the GIF's own per-frame delay
+(override with `-Fps`). Add `-NoLoop` for a one-shot animation like
+`react`. The target species' `species.json` must already exist — this
+only adds one animation entry, it doesn't scaffold a whole new species.
+
+If the target is your currently-active species, §8's live reload picks up
+the change automatically.
+
+---
+
+## 10. Common issues
 
 **Sprite doesn't render, no console error**
 Almost certainly the `file://`-from-`http://localhost` issue described in
