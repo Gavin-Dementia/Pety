@@ -8,18 +8,24 @@ initial scaffold pass, not forgotten.
 
 ## Open — deferred
 
-### 1. Interactive input not yet tested
+### 1. Interactive input — automated-verified, human confirmation still open
 
 Click-through-outside-the-sprite and drag-to-pick-up are implemented
-(`src/renderer/InputController.ts`, `petWindow.ts`'s `setClickThrough()`)
-but no human has actually hovered/dragged the running app to confirm they
-work. Code review + the static render verification (Milestone 3/8 in
-`roadmap.md`) are the only checks so far.
+(`src/renderer/InputController.ts`, `petWindow.ts`'s `setClickThrough()`).
+Verified once via simulated OS-level mouse input (`SetCursorPos` +
+`mouse_event` from PowerShell): moved onto the sprite, held+dragged,
+released, then located the sprite in a follow-up screenshot by its exact
+placeholder color — its X position moved with the simulated drag (~118 of
+an intended 150px), confirming hover → click-through-disable → drag-start →
+position-update → render all actually fire. Y didn't move in that run,
+likely a `SetCursorPos` coalescing artifact rather than a real bug (see
+`roadmap.md` Milestone 4) — a real human drag would settle this
+definitively.
 
 **To verify:** `npm run dev`, then: hover the sprite and confirm the
-cursor icon/behavior changes; drag it across the screen; move off the
-sprite and click a window underneath — it should register on that window,
-not the pet.
+cursor icon/behavior changes; drag it across the screen (both axes); move
+off the sprite and click a window underneath — it should register on that
+window, not the pet.
 
 ### 2. Tray icon visibility unconfirmed
 
@@ -31,13 +37,36 @@ creation silently failed" from a screenshot alone.
 **To verify:** open the overflow flyout, confirm "Window Pet" is there with
 a working Show/Hide Pet + Quit menu.
 
-### 3. Packaging icons missing
+### 3. Packaging icons — Windows icon closed; `package:win` itself still blocked on this machine; macOS icon still open
 
-`build-resources/icon.ico` (Windows) and `icon.icns` (macOS) don't exist —
-only a placeholder `icon.png` (`scripts/generate-app-icons.ps1`).
-`electron-builder.yml` references both. `npm run package:win`/`package:mac`
-will fail until they're generated (from real art, or a converted version of
-the placeholder as a stopgap).
+`build-resources/icon.ico` is now generated
+(`scripts/generate-windows-ico.ps1`, packs the placeholder `icon.png` into
+a minimal valid ICO using the embedded-PNG format), and `electron-builder`
+does get as far as producing a working, correctly-icon'd
+`release/win-unpacked/Window Pet.exe` with `assets/` bundled correctly —
+confirmed by running it. But `npm run package:win`'s actual NSIS/portable
+installer step never runs: electron-builder unconditionally tries to fetch
+and extract a `winCodeSign` tool bundle (macOS code-signing libraries,
+irrelevant to an unsigned Windows build, but still fetched — setting
+`CSC_IDENTITY_AUTO_DISCOVERY=false` did not skip it) and that archive
+contains symlinks (`darwin/10.12/lib/libcrypto.dylib` etc.). Extracting
+symlinks needs Windows' `SeCreateSymbolicLinkPrivilege`, which this account
+doesn't have (no Developer Mode, not running elevated) — `7za.exe` fails
+with `Cannot create symbolic link: A required privilege is not held by the
+client.` on every retry, forever, for every one of several bundled signing
+components in turn. Confirmed as a real, reproducible failure (`exit
+code 1`), not just a slow download — a background run that superficially
+looked like it "completed" was actually killed by an external timeout
+mid-retry-loop, which is worth remembering: don't trust a background task's
+reported exit code here without checking the log ends in an actual
+success/failure line.
+
+**Real fix, not yet applied (needs the user, requires elevation I don't
+have):** enable Windows Developer Mode (Settings → Privacy & security →
+For developers) or run the packaging command from an elevated terminal —
+either grants the symlink privilege. `icon.icns` (macOS) is separately
+still missing — generating it needs `iconutil`/`sips`, only available on
+macOS.
 
 ### 4. macOS / Linux never actually run
 

@@ -47,7 +47,7 @@ Implemented in `src/main/petWindow.ts`:
 
 ## Milestone 4 — Click-through + manual drag
 
-**Status: Implemented, not yet interactively verified**
+**Status: Implemented, automated-verified (not yet human-verified)**
 
 Implemented in `src/renderer/InputController.ts` + `petWindow.ts`'s
 `setClickThrough()`:
@@ -57,8 +57,20 @@ Implemented in `src/renderer/InputController.ts` + `petWindow.ts`'s
   starts drag, position updates via CSS `transform: translate()`, not
   `BrowserWindow.setPosition()` — see `docs/setup.md` §6 for why
 
-No human has clicked through to a window underneath or dragged the sprite
-yet. See `bugs.md` — "Interactive input not yet tested."
+Verified via simulated OS-level input (`user32.dll` `SetCursorPos` +
+`mouse_event`, driven from PowerShell) against the running dev app: moved
+the cursor onto the sprite, held the left button, moved in steps, released,
+then re-screenshotted and located the sprite by its exact placeholder
+color. The sprite's on-screen X position moved from the simulated drag
+(≈118px of an intended 150px step), confirming the full pipeline —
+hover-driven click-through disable → `pointerdown` drag start → position
+updates on move → render — actually executes end to end. (The Y axis
+didn't move as expected in this run, most likely a `SetCursorPos` timing/
+coalescing artifact of the external simulation rather than a code bug,
+since X moving at all already requires the harder precondition —
+click-through correctly disabling on hover — to have worked. Still worth a
+real human drag to fully confirm both axes.) See `bugs.md` for the full
+note.
 
 ---
 
@@ -116,25 +128,36 @@ screenshot that verified Milestone 3 — idle animation is visibly playing.
 
 ## Milestone 9 — Behavior AI
 
-**Status: Implemented, not yet interactively verified**
+**Status: Implemented, indirectly observed, not fully watched end-to-end**
 
 `src/renderer/BehaviorController.ts`: timer-driven idle/walk phases, random
 direction/duration from `species.json`'s `behavior` block, turns around at
-work-area bounds, interrupted by drag start/resumed after drag end. Nobody
-has watched it actually walk across the screen yet — needs a longer-running
-manual session. See `bugs.md`.
+work-area bounds, interrupted by drag start/resumed after drag end. Screenshots
+taken minutes apart during this session caught the sprite in different
+animation colors (idle-blue, then walk-green, then idle-blue again),
+indirect evidence the idle↔walk cycling is actually happening over time —
+but nobody has watched it continuously to confirm smooth walking motion
+(vs. teleporting between phases) or the edge-of-screen turn-around in a
+live session. See `bugs.md`.
 
 ---
 
 ## Milestone 10 — Packaging
 
-**Status: Not started**
+**Status: Partial — Windows icon done, `package:win` blocked on this machine, macOS/Linux untried**
 
 `electron-builder.yml` is written (win/mac/linux targets, `extraResources`
-for `assets/`), but `build-resources/icon.ico` (Windows) and `icon.icns`
-(macOS) don't exist yet — only a placeholder `icon.png`. `npm run
-package:win`/`package:mac` will fail until those are generated. Deferred
-alongside items 1/2/3/6 in `bugs.md`.
+for `assets/`). `build-resources/icon.ico` now exists
+(`scripts/generate-windows-ico.ps1`) and produces a correct, working
+`release/win-unpacked/Window Pet.exe` with `assets/` bundled properly.
+However `npm run package:win`'s NSIS/portable installer step itself fails
+on this machine — a real, reproducible bug (not a missing-icon problem
+this time): electron-builder tries to extract a macOS code-signing tool
+bundle that contains symlinks, and this Windows account lacks the
+privilege to create them. Needs Developer Mode or an elevated terminal to
+actually fix — see `bugs.md` item 3 for the full trace. `icon.icns`
+(macOS) still doesn't exist; `package:mac`/`package:linux` untried
+entirely.
 
 ---
 

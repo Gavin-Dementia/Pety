@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "description": "A cross-platform desktop pet you catch and raise, built with Electron and TypeScript.",
   "private": true,
+  "author": "GavinTu",
   "license": "MIT",
   "main": "dist/main/index.js",
   "scripts": {
