@@ -48,13 +48,15 @@ renderer-side event flow in the terminal without attaching DevTools.
 **To verify (needs a human):** `npm run dev`, then: hover the sprite and
 confirm the cursor icon/behavior changes; drag it across the screen (both
 axes); move off the sprite and click a window underneath — it should
-register on that window, not the pet; quick-click (`poke`) or press-and-
-hold (`pet`) on the sprite once each is unlocked (see item 5 below) and
-confirm a brief reaction animation plays, auto-returning to idle when it
-finishes. Note: this item is specifically about the click-through-
-forwarded `BrowserWindow` content — the tray and its Species submenu are
-native OS UI, not affected by this limitation, and *have* been genuinely
-verified (see "Fixed" below and item 5).
+register on that window, not the pet; quick-click (`poke`), double-click
+(`doubleclick`), or press-and-hold (`pet`) on the sprite once each is
+unlocked (see item 5 below) and confirm a brief reaction animation plays,
+auto-returning to idle when it finishes — and that a genuine double-click
+doesn't also separately register as two `poke`s. Note: this item is
+specifically about the click-through-forwarded `BrowserWindow` content —
+the tray and its Species submenu are native OS UI, not affected by this
+limitation, and *have* been genuinely verified (see "Fixed" below and item
+5).
 
 ### 2. Packaging icons — Windows icon closed; `package:win` itself still blocked on this machine; macOS icon still open
 

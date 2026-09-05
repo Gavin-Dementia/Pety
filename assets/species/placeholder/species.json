@@ -65,7 +65,7 @@
       "id": "tier1-sit-and-poke",
       "unlockAtMs": 60000,
       "unlockedBehaviorStates": ["sit"],
-      "unlockedInteractions": ["poke"]
+      "unlockedInteractions": ["poke", "doubleclick"]
     },
     {
       "id": "tier2-sleep-and-pet",

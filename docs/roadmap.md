@@ -401,6 +401,55 @@ a state that would affect a normal launch.
 
 ---
 
+## Milestone 16 — Double-click interaction
+
+**Status: Implemented, unit-tested; live firing unverified (same root cause as poke/pet)**
+
+User was assessing the framework's extensibility against a concrete
+4-action target (idle / drag / single-click / double-click). Idle, drag,
+and single-click (`poke`) were already covered by the existing design;
+double-click needed real new code, since it requires remembering the
+*previous* click's timestamp across separate press/release cycles —
+something `classifyPointerRelease`'s single-gesture duration/movement
+classification couldn't express. Scoped down per the user's choice: reuse
+the existing shared `react()` reaction rather than also generalizing it to
+support per-interaction animations (that generalization is still a clean
+future extension point if/when distinct reaction animations matter).
+
+Implemented:
+- `gestureClassifier.ts` gained `isDoubleClick(now, lastClickTime,
+  windowMs)`, a pure boundary check, unit tested (`gestureClassifier.
+  test.ts` grew from 3 to 7 cases).
+- `InputController` now tracks `lastClickTime`; a released "click" (not
+  longpress, not promoted to drag) checks `isDoubleClick` against it to
+  choose `'doubleclick'` vs `'poke'` as the interaction id, both going
+  through the same already-generic `isInteractionUnlocked` gate. A
+  longpress doesn't touch `lastClickTime` — only click-family gestures
+  participate in the double-click window.
+- `placeholder`'s `species.json`: `doubleclick` unlocks alongside `poke`
+  at tier1 (60s), both click-family gestures together; `pet` (a different
+  modality, held-press) stays at tier2 (300s).
+
+**Assessment of the framework's interaction extensibility, as asked:**
+the *unlock/gating* layer (species-defined interaction ids →
+`isInteractionUnlocked`) was already fully generic before this — adding
+`doubleclick` needed zero changes there. The *gesture-detection* layer
+is not a generic pluggable-recognizer system — each genuinely new
+detection *shape* (movement-threshold for drag, duration-threshold for
+click/longpress, now cross-event timing for double-click) needs its own
+logic added to `InputController`, following the established pattern of
+"classify the release, map to an interaction id" but not automatically.
+A future right-click would follow the same shape (check `event.button`,
+no new timing state needed) and be a small addition; a genuinely novel
+gesture shape (e.g. drag-then-release-at-an-edge, multi-key modifiers)
+would need its own new detection code each time, same as this one did.
+
+**Not verified:** whether double-click actually fires from real mouse
+input — blocked on the same click-through/synthetic-input limitation as
+poke/pet/drag (`bugs.md` #1). Needs a human.
+
+---
+
 ## Open / not yet started
 
 See `bugs.md` for the full list of deferred/open items — interactive

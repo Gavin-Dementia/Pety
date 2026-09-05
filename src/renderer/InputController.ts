@@ -2,10 +2,11 @@ import type { PetRenderer } from './PetRenderer';
 import type { BehaviorController } from './BehaviorController';
 import type { SpeciesAnimationDef } from '../shared/speciesSchema';
 import { pointInRect, type Vec2 } from './types';
-import { classifyPointerRelease } from './gestureClassifier';
+import { classifyPointerRelease, isDoubleClick } from './gestureClassifier';
 
 const DRAG_PROMOTION_THRESHOLD_PX = 6;
 const LONG_PRESS_THRESHOLD_MS = 400;
+const DOUBLE_CLICK_WINDOW_MS = 300;
 
 interface PendingPointerDown {
   startPos: Vec2;
@@ -23,10 +24,12 @@ interface PendingPointerDown {
  * pointer either moves past DRAG_PROMOTION_THRESHOLD_PX (promotes to a
  * drag) or releases without moving that far. A release that was never
  * promoted is classified by how long it was held (see
- * gestureClassifier.ts) into a quick "poke" or a held "pet" — two
- * independently unlockable interactions (via isInteractionUnlocked),
- * both currently triggering the same reaction; more gesture types
- * (double-click, right-click) would follow this same pattern.
+ * gestureClassifier.ts) into a quick click or a held "pet" longpress. A
+ * click is further split into "poke" (first/isolated) or "doubleclick"
+ * (landed within DOUBLE_CLICK_WINDOW_MS of the previous click) — three
+ * independently unlockable interactions (via isInteractionUnlocked), all
+ * currently triggering the same reaction; a right-click would follow this
+ * same "classify the release, map to an interaction id" pattern.
  */
 export class InputController {
   private isDragging = false;
@@ -35,6 +38,7 @@ export class InputController {
   private isHovering = false;
   private currentAnimation: SpeciesAnimationDef | null = null;
   private currentScale = 1;
+  private lastClickTime: number | null = null;
 
   // Bound once so destroy() can remove exactly the listeners attach() added
   // — an inline arrow passed straight to addEventListener can't be removed
@@ -127,11 +131,21 @@ export class InputController {
     }
 
     if (this.pending) {
-      const heldMs = performance.now() - this.pending.startTime;
+      const now = performance.now();
+      const heldMs = now - this.pending.startTime;
       this.pending = null;
 
       const gesture = classifyPointerRelease(heldMs, LONG_PRESS_THRESHOLD_MS);
-      const interactionId = gesture === 'longpress' ? 'pet' : 'poke';
+      let interactionId: string;
+      if (gesture === 'longpress') {
+        interactionId = 'pet';
+      } else {
+        interactionId = isDoubleClick(now, this.lastClickTime, DOUBLE_CLICK_WINDOW_MS)
+          ? 'doubleclick'
+          : 'poke';
+        this.lastClickTime = now;
+      }
+
       if (this.isInteractionUnlocked(interactionId)) {
         this.behavior.react();
       }

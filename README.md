@@ -26,10 +26,10 @@ colored blobs) so the engine can be built and tested before real art exists
 - **Progression**: cumulative app-open runtime (not calendar days since
   install) unlocks more idle-behavior variants and interactions over
   time, defined per-species — see `docs/roadmap.md` Milestone 13
-- **Interactions**: a quick click (`poke`) or a held press (`pet`) on the
-  sprite, distinguished by gesture duration and each independently
-  unlockable — a documented, extensible pattern for adding more gesture
-  types later (see `src/renderer/gestureClassifier.ts`)
+- **Interactions**: a quick click (`poke`), double-click (`doubleclick`),
+  or a held press (`pet`) on the sprite, each independently unlockable —
+  a documented, extensible pattern for adding more gesture types later
+  (see `src/renderer/gestureClassifier.ts`)
 - **Stats plumbing**: generic named-stat persistence
   (`src/main/statsTracker.ts`) — the storage/IPC layer a future hunger/
   growth system will need, deliberately not wired to any gameplay logic
