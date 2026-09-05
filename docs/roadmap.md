@@ -569,6 +569,55 @@ factor (32×32 → 5×5) completes without error.
 
 ---
 
+## Milestone 19 — Background removal + procedural GIF loop (experiment, ad-hoc)
+
+**Status: Experiment only — scripts exist but are not yet integrated/documented as project tools**
+
+Given a user-supplied test illustration, ran a one-off pipeline: downscale
+(`pixel-art-downscale.ps1`) → remove the dark background
+(`scripts/remove-dark-background.ps1`, new — luminance-threshold alpha
+keying with a feathered edge, same System.Drawing/no-new-dependency
+approach as the rest of `scripts/`) → generate two looping animated GIFs
+from the single resulting static sprite via procedural transforms only
+(`scripts/procedural-loop-gif.ps1`, new: bob for a "common"/idle loop,
+bigger bounce+squash-stretch+brightness flash for a "rare"/expressive
+loop) → assemble each frame set into an actual multi-frame GIF
+(`scripts/frames-to-gif.ps1`, new: encodes each frame individually through
+.NET's own GDI+ GIF encoder rather than reimplementing LZW/quantization,
+then splices the per-frame Image Descriptor + local color table + LZW data
+out of each single-frame file into one combined container with a
+NETSCAPE2.0 loop extension).
+
+**Bug caught and fixed:** the frame-splicing code used a color table's
+byte length (`ColorTable.Count`, i.e. entries × 3) where it needed the
+actual color count, corrupting the Image Descriptor's declared table size
+and breaking every frame after the first. Caught by an independent check —
+loading the assembled GIF back through .NET's own `Image.FromFile` /
+`GetFrameCount` — not just eyeballing it; before the fix both GIFs
+decoded as 1 frame, after the fix as 6 and 10 frames respectively,
+matching what was generated. Separately found (and fixed) that GDI+'s GIF
+encoder composites semi-transparent edge pixels against black instead of
+preserving their color, since GIF alpha is binary-only — fixed by
+thresholding alpha to 0/255 before handing frames to the encoder.
+
+**Deliberately not done here:** these three scripts are not yet documented
+in `setup.md`/`README.md` and not confirmed as permanent project tooling —
+they were written to answer one immediate ask, not committed to as the
+long-term art pipeline.
+
+**Noted for later, as a separate project:** the real version of this idea
+— genuine image → Gen-5 Pokémon Black/White-style small full-color
+detailed pixel-art conversion → clean animated GIF — is a meaningfully
+harder problem than what these scripts do (mode-color downscaling +
+luminance keying + procedurally-faked motion on one static frame is a
+crude stand-in, not actual style conversion or real animation). Worth
+researching as its own standalone project rather than folding into Window
+Pet's `scripts/` — see the git-submodule research in Milestone 17 for
+where that search already started (PixelOver-style tools, BW-style
+converters) and stalled on licensing/toolchain constraints.
+
+---
+
 ## Open / not yet started
 
 See `bugs.md` for the full list of deferred/open items — interactive
