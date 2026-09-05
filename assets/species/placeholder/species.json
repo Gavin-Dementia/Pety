@@ -1,0 +1,51 @@
+{
+  "id": "placeholder",
+  "displayName": "Blob",
+  "version": "0.1.0",
+  "animations": {
+    "idle": {
+      "sheet": "sprites/idle.png",
+      "frameWidth": 32,
+      "frameHeight": 32,
+      "frameCount": 2,
+      "fps": 2,
+      "loop": true
+    },
+    "walk": {
+      "sheet": "sprites/walk.png",
+      "frameWidth": 32,
+      "frameHeight": 32,
+      "frameCount": 4,
+      "fps": 6,
+      "loop": true
+    },
+    "dragged": {
+      "sheet": "sprites/drag.png",
+      "frameWidth": 32,
+      "frameHeight": 32,
+      "frameCount": 1,
+      "fps": 1,
+      "loop": false
+    },
+    "sit": {
+      "sheet": "sprites/sit.png",
+      "frameWidth": 32,
+      "frameHeight": 32,
+      "frameCount": 1,
+      "fps": 1,
+      "loop": false
+    }
+  },
+  "behavior": {
+    "walkSpeedPxPerSec": 40,
+    "idleMinMs": 2000,
+    "idleMaxMs": 5000,
+    "walkMinMs": 1500,
+    "walkMaxMs": 4000,
+    "spriteScale": 3
+  },
+  "attribution": {
+    "author": "Window Pet project",
+    "license": "CC0-1.0"
+  }
+}
