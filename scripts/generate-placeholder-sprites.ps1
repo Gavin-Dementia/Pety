@@ -40,10 +40,17 @@ $green1 = [System.Drawing.Color]::FromArgb(255, 90, 200, 130)
 $green2 = [System.Drawing.Color]::FromArgb(255, 110, 220, 150)
 $orange = [System.Drawing.Color]::FromArgb(255, 240, 160, 70)
 $purple = [System.Drawing.Color]::FromArgb(255, 170, 120, 220)
+$gray = [System.Drawing.Color]::FromArgb(255, 130, 140, 150)
+$yellow1 = [System.Drawing.Color]::FromArgb(255, 245, 210, 90)
+$yellow2 = [System.Drawing.Color]::FromArgb(255, 250, 230, 130)
 
 New-SpriteSheet -FileName "idle.png" -FrameCount 2 -Colors @($blue1, $blue2)
 New-SpriteSheet -FileName "walk.png" -FrameCount 4 -Colors @($green1, $green2, $green1, $green2)
 New-SpriteSheet -FileName "drag.png" -FrameCount 1 -Colors @($orange)
 New-SpriteSheet -FileName "sit.png" -FrameCount 1 -Colors @($purple)
+# progression milestone additions: sleep (long-idle variant, muted gray)
+# and react (poke reaction, a quick non-looping color pulse)
+New-SpriteSheet -FileName "sleep.png" -FrameCount 1 -Colors @($gray)
+New-SpriteSheet -FileName "react.png" -FrameCount 3 -Colors @($yellow1, $yellow2, $yellow1)
 
 Write-Host "Done."

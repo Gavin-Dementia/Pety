@@ -12,8 +12,16 @@ export class AnimationController {
   private frameIndex = 0;
   private elapsedMs = 0;
 
+  /**
+   * Always resets to frame 0, even if `def` is the same object reference as
+   * before — this is only ever called from a real PetStateMachine
+   * transition (or once at initial load), so re-entering a state should
+   * always replay its animation from the start. Without this, re-entering a
+   * non-looping animation a second time (e.g. a repeated "react" reaction)
+   * would silently no-op and show the already-finished last frame instead
+   * of replaying.
+   */
   setAnimation(def: SpeciesAnimationDef): void {
-    if (this.def === def) return;
     this.def = def;
     this.frameIndex = 0;
     this.elapsedMs = 0;
@@ -34,6 +42,12 @@ export class AnimationController {
         this.frameIndex = nextIndex;
       }
     }
+  }
+
+  /** True once a non-looping animation has reached and is holding its last frame. */
+  isFinished(): boolean {
+    if (!this.def) return false;
+    return !this.def.loop && this.frameIndex >= this.def.frameCount - 1;
   }
 
   getCurrentFrameRect(): FrameRect | null {

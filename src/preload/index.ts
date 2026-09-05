@@ -17,6 +17,9 @@ const petAPI: PetAPI = {
   getWorkArea(): Promise<Rect> {
     return ipcRenderer.invoke(IPC.GET_WORK_AREA);
   },
+  getPlaytimeMs(): Promise<number> {
+    return ipcRenderer.invoke(IPC.GET_PLAYTIME);
+  },
   onSpeciesLoaded(callback: (species: LoadSpeciesPayload) => void) {
     ipcRenderer.on(IPC.LOAD_SPECIES, (_event, species: LoadSpeciesPayload) => callback(species));
   },

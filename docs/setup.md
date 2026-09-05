@@ -153,3 +153,19 @@ yet. See `docs/bugs.md`.
 If Node was installed the same way as this dev machine (see §2), confirm
 `D:\tools\nodejs` (or wherever you put it) is actually in your **user**
 `PATH`, not just exported in a shell that already closed.
+
+**Progression tiers seem to unlock faster than expected during dev**
+`vite-plugin-electron` auto-restarts the Electron process on every
+`src/main` file save. `ProgressionTracker` resumes from its persisted
+total on each restart, so playtime accumulates across those restarts too —
+not a bug, just means active development crosses tiers faster than one
+continuous run would. See `docs/roadmap.md` Milestone 13.
+
+**Debugging renderer-side logic without attaching DevTools**
+Temporarily add `window.webContents.on('console-message', (_e, _level,
+message) => console.log('[renderer]', message))` after creating the
+window in `petWindow.ts`, plus `console.log` calls wherever you're
+debugging in `src/renderer/*.ts` — renderer console output then shows up
+directly in the terminal running `npm run dev`. Remove before committing;
+this is how the Milestone 13 click-through/synthetic-input limitation
+(`docs/bugs.md` #1) was actually diagnosed instead of guessed at.

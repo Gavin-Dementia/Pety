@@ -15,9 +15,10 @@ describe('PetStateMachine', () => {
 
   it('rejects a transition not in the allowed table', () => {
     const sm = new PetStateMachine();
-    // idle -> sit is not in ALLOWED_TRANSITIONS
+    sm.transition('walk');
+    // walk -> sit is not in ALLOWED_TRANSITIONS (idle is the hub for variants)
     expect(sm.transition('sit')).toBe(false);
-    expect(sm.getState()).toBe('idle');
+    expect(sm.getState()).toBe('walk');
   });
 
   it('rejects transitioning to the same state', () => {
@@ -31,7 +32,7 @@ describe('PetStateMachine', () => {
     const listener = vi.fn();
     sm.onChange(listener);
 
-    expect(sm.transition('sit')).toBe(false); // idle -> sit not allowed
+    expect(sm.transition('idle')).toBe(false); // same-state transition not allowed
     expect(listener).not.toHaveBeenCalled();
 
     expect(sm.transition('walk')).toBe(true);
@@ -45,5 +46,20 @@ describe('PetStateMachine', () => {
     expect(sm.transition('sit')).toBe(true); // dragged -> sit is allowed
     expect(sm.transition('idle')).toBe(true);
     expect(sm.getState()).toBe('idle');
+  });
+
+  it('allows idle as the hub to every progression variant (sit/sleep/react)', () => {
+    for (const variant of ['sit', 'sleep', 'react'] as const) {
+      const sm = new PetStateMachine();
+      expect(sm.transition(variant)).toBe(true);
+      expect(sm.getState()).toBe(variant);
+    }
+  });
+
+  it('react can only return to idle', () => {
+    const sm = new PetStateMachine();
+    sm.transition('react');
+    expect(sm.transition('walk')).toBe(false);
+    expect(sm.transition('idle')).toBe(true);
   });
 });

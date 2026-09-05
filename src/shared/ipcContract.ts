@@ -6,6 +6,7 @@ export const IPC = {
   DRAG_MOVE: 'pet:dragMove',
   DRAG_END: 'pet:dragEnd',
   GET_WORK_AREA: 'pet:getWorkArea',
+  GET_PLAYTIME: 'pet:getPlaytime',
   LOAD_SPECIES: 'species:load',
   TRAY_SHOW_HIDE: 'tray:toggleVisibility',
   QUIT_REQUESTED: 'app:quitRequested',
@@ -31,6 +32,7 @@ export interface PetAPI {
   dragMove(payload: DragMovePayload): void;
   dragEnd(): void;
   getWorkArea(): Promise<Rect>;
+  getPlaytimeMs(): Promise<number>;
   onSpeciesLoaded(callback: (species: LoadSpeciesPayload) => void): void;
   onVisibilityToggled(callback: (visible: boolean) => void): void;
   onQuitRequested(callback: () => void): void;

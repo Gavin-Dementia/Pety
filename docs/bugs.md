@@ -8,24 +8,49 @@ initial scaffold pass, not forgotten.
 
 ## Open — deferred
 
-### 1. Interactive input — automated-verified, human confirmation still open
+### 1. Interactive input — earlier "verified" claim retracted; real human testing still needed
 
-Click-through-outside-the-sprite and drag-to-pick-up are implemented
-(`src/renderer/InputController.ts`, `petWindow.ts`'s `setClickThrough()`).
-Verified once via simulated OS-level mouse input (`SetCursorPos` +
-`mouse_event` from PowerShell): moved onto the sprite, held+dragged,
-released, then located the sprite in a follow-up screenshot by its exact
-placeholder color — its X position moved with the simulated drag (~118 of
-an intended 150px), confirming hover → click-through-disable → drag-start →
-position-update → render all actually fire. Y didn't move in that run,
-likely a `SetCursorPos` coalescing artifact rather than a real bug (see
-`roadmap.md` Milestone 4) — a real human drag would settle this
-definitively.
+**Correction to this file's own history:** an earlier pass here claimed
+click-through + drag were "automated-verified" via simulated OS-level mouse
+input (`SetCursorPos`/`mouse_event` from PowerShell), based on the sprite's
+X position changing after a simulated drag. That conclusion was wrong. While
+building the poke interaction (below), the same simulation technique was
+tested with explicit debug logging temporarily wired from the renderer's
+`console.log` through to the main process's stdout (`webContents.on(
+'console-message', ...)`) — and confirmed **zero pointer events of any
+kind** (not even `pointermove`) ever reach the renderer via
+`SetCursorPos`/`mouse_event`, across many variations (single jump, gradual
+multi-step approach, from a stationary start, etc.).
 
-**To verify:** `npm run dev`, then: hover the sprite and confirm the
-cursor icon/behavior changes; drag it across the screen (both axes); move
-off the sprite and click a window underneath — it should register on that
-window, not the pet.
+The earlier "successful" drag test almost certainly measured
+`BehaviorController`'s autonomous walk-phase movement, not the simulated
+drag — which also explains why that test's Y axis never moved (walk-phase
+movement is X-only by design; a real drag would move both axes together).
+That was a real methodology mistake, worth naming plainly rather than
+quietly fixing.
+
+**Likely root cause:** Electron's click-through `setIgnoreMouseEvents(true,
+{forward: true})` most plausibly forwards mouse input via a low-level
+system hook (since a `WS_EX_TRANSPARENT`-style window normally receives no
+mouse messages via standard routing at all), and that hook path very
+plausibly filters out synthetic/injected input as a security measure
+against exactly this kind of automated click-through spoofing. This isn't
+confirmed against Electron/Chromium source, just the best explanation
+fitting the evidence.
+
+**Conclusion:** click-through, hover, drag, and the new poke interaction
+cannot be verified by this kind of automated mouse simulation in this
+environment. They need a real human at the mouse. Debug tip for next time:
+temporarily add the `console-message` forwarding shown above in
+`petWindow.ts` plus `console.log` calls in `InputController.ts` to see
+renderer-side event flow in the terminal without attaching DevTools.
+
+**To verify (needs a human):** `npm run dev`, then: hover the sprite and
+confirm the cursor icon/behavior changes; drag it across the screen (both
+axes); move off the sprite and click a window underneath — it should
+register on that window, not the pet; quick-click (no drag) on the sprite
+once `poke` is unlocked (see item 5 below) and confirm a brief reaction
+animation plays, auto-returning to idle when it finishes.
 
 ### 2. Tray icon visibility unconfirmed
 
@@ -74,6 +99,32 @@ Every macOS-specific call (`setVisibleOnAllWorkspaces`, `app.dock.hide()`)
 and Linux tray behavior note (`StatusNotifierItem` support varies by
 desktop environment) is written to match documented Electron behavior, not
 verified on those platforms. This machine is Windows-only.
+
+### 5. Progression system — unlock logic verified via code+tests+persistence, interaction gating unverified (see item 1)
+
+The playtime-gated progression system (`ProgressionTracker`,
+`ProgressionController`, `species.json`'s `progression` array) has real,
+positive evidence it works:
+
+- `progression.json` under `app.getPath('userData')` (on this machine:
+  `%APPDATA%/window-pet/progression.json`) correctly persisted and
+  accumulated `totalPlaytimeMs` across multiple dev-mode app restarts —
+  confirmed by reading the file directly (`{"totalPlaytimeMs":430344}`)
+  after several `vite-plugin-electron`-triggered auto-restarts, well past
+  both demo tiers (60s, 300s).
+- The placeholder species visibly cycled through `idle` (blue) → `walk`
+  (green) → `sleep` (gray) across several screenshots minutes apart,
+  consistent with `sleep` becoming an eligible idle-variant pick only once
+  tier2 (300s) was actually crossed.
+- Unit tests (`ProgressionController.test.ts`,
+  `BehaviorController.test.ts`) cover tier-crossing logic and the
+  idle-variant pick mechanism directly.
+
+**Not verified:** whether `poke` actually triggers the `react` animation
+end-to-end via real mouse input — blocked on item 1 above (synthetic mouse
+simulation can't exercise this at all, confirmed, not just "not yet
+tried"). A human needs to quick-click the sprite after the 60s mark and
+confirm the reaction plays and auto-returns to idle.
 
 ---
 

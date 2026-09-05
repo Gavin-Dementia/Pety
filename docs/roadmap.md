@@ -47,30 +47,28 @@ Implemented in `src/main/petWindow.ts`:
 
 ## Milestone 4 — Click-through + manual drag
 
-**Status: Implemented, automated-verified (not yet human-verified)**
+**Status: Implemented, genuinely unverified — an earlier "automated-verified" claim here was wrong, see `bugs.md` #1**
 
 Implemented in `src/renderer/InputController.ts` + `petWindow.ts`'s
 `setClickThrough()`:
 - `setIgnoreMouseEvents(ignore, { forward: true })`, toggled from a
   renderer-side mousemove bounding-rect hit test against the sprite
-- Manual drag (no native window drag region): `pointerdown` on the sprite
-  starts drag, position updates via CSS `transform: translate()`, not
-  `BrowserWindow.setPosition()` — see `docs/setup.md` §6 for why
+- Manual drag (no native window drag region): pointerdown starts a
+  "pending" state, promoted to a real drag once movement crosses a small
+  threshold (also how the poke interaction — Milestone 13 — distinguishes
+  a click from a drag); position updates via CSS `transform: translate()`,
+  not `BrowserWindow.setPosition()` — see `docs/setup.md` §6 for why
 
-Verified via simulated OS-level input (`user32.dll` `SetCursorPos` +
-`mouse_event`, driven from PowerShell) against the running dev app: moved
-the cursor onto the sprite, held the left button, moved in steps, released,
-then re-screenshotted and located the sprite by its exact placeholder
-color. The sprite's on-screen X position moved from the simulated drag
-(≈118px of an intended 150px step), confirming the full pipeline —
-hover-driven click-through disable → `pointerdown` drag start → position
-updates on move → render — actually executes end to end. (The Y axis
-didn't move as expected in this run, most likely a `SetCursorPos` timing/
-coalescing artifact of the external simulation rather than a code bug,
-since X moving at all already requires the harder precondition —
-click-through correctly disabling on hover — to have worked. Still worth a
-real human drag to fully confirm both axes.) See `bugs.md` for the full
-note.
+This file previously claimed simulated-mouse-input verification succeeded.
+That was retested and retracted while building Milestone 13's poke
+interaction: explicit debug logging showed simulated
+`SetCursorPos`/`mouse_event` input never reaches the renderer's pointer
+events at all in this environment (most likely filtered as
+non-hardware-origin input by whatever mechanism implements Electron's
+click-through forwarding — see `bugs.md` #1 for the full writeup). The
+earlier test's measured movement was almost certainly the pet's own
+autonomous walk phase, not the simulated drag. This needs real human
+testing, not another automation attempt.
 
 ---
 
@@ -181,19 +179,76 @@ is current behavior), hunger/growth stat persistence, auto-update.
 
 ---
 
+## Milestone 13 — Playtime-gated progression (more idle behaviors + interactions over time)
+
+**Status: Core mechanism verified (persistence + tier logic); interaction gating unverified — see `bugs.md` #1/#5**
+
+User-requested feature: the longer the pet has been open, the more
+autonomous idle behaviors and interactions unlock — chosen metric is
+cumulative app-open runtime (not calendar days since install). Full design
+in the plan file, `C:\Users\tugav\.claude\plans\federated-herding-storm.md`.
+
+Implemented:
+- `src/main/progressionTracker.ts` — hand-rolled persistence (no new
+  dependency) to `app.getPath('userData')/progression.json`, flushed every
+  10s and on quit
+- `src/renderer/ProgressionController.ts` — pure tier-crossing logic,
+  seeded once from main via a new `GET_PLAYTIME` IPC channel, advanced
+  locally each tick
+- `species.json` gained `progression: ProgressionTier[]`; the placeholder
+  species defines 2 demo tiers (60s → unlocks `sit` idle-variant + `poke`
+  interaction; 300s → unlocks `sleep` idle-variant) — deliberately short
+  for verifiability, not production pacing
+- `PetStateMachine` restructured as hub-and-spoke through `idle` (idle can
+  reach every variant; every variant returns only to idle) so adding more
+  variants later doesn't grow the transition table combinatorially
+- New `react` `PetState` (a poke reaction) with matching `AnimationController.
+  isFinished()` support, auto-returning to idle when its non-looping
+  animation completes
+- `InputController` reworked to distinguish a poke (quick click, no
+  movement) from a drag (movement past a 6px threshold) via a pending-
+  pointerdown state
+- Real bug found and fixed along the way: `AnimationController.setAnimation
+  ()`'s object-identity guard broke replaying the same non-looping
+  animation on re-entry (a second poke would show the frozen last frame
+  instead of replaying) — removed, since the method is only ever called on
+  an actual state transition, so restarting is always correct
+- Unit tests: `ProgressionController.test.ts` (tier crossing, always-
+  available idle), extended `BehaviorController.test.ts` (idle-variant
+  picking, react/endReaction, IDLE_LIKE phase-timer generalization),
+  extended `PetStateMachine.test.ts` for the new hub-and-spoke edges
+
+Verified: `progression.json` correctly persisted and accumulated across
+multiple dev-mode restarts (confirmed by reading the file directly —
+`totalPlaytimeMs` crossed both demo tiers); the placeholder species was
+observed cycling through idle/walk/**sleep** across screenshots minutes
+apart, consistent with the `sleep` tier actually having unlocked. Not
+verified: whether poke itself fires from real mouse input — blocked on the
+same click-through/synthetic-input limitation as Milestone 4, see
+`bugs.md` #1.
+
+**Dev-mode quirk worth knowing:** `vite-plugin-electron` auto-restarts the
+Electron process on every `src/main` file save. Each restart resumes from
+the persisted total, so playtime accumulates across those restarts too —
+tiers can cross much faster during active development than a single
+continuous run would suggest. Not a bug, just worth knowing when eyeballing
+whether a tier "should" have unlocked yet.
+
+---
+
 ## Open / not yet started
 
 See `bugs.md` for the full list of deferred/open items (interactive
-verification, tray visibility, packaging icons, macOS/Linux testing) and
+verification — now confirmed blocked on synthetic input, not just
+untried — tray visibility, packaging icons, macOS/Linux testing) and
 `assets/species/README-ish` gap: the real creature art/IP decision is still
 unresolved — see project memory / `CONTRIBUTING.md`'s art policy.
 
-Test coverage: none existed until this pass added `vitest` — see
-`package.json` and `src/**/*.test.ts` for what's actually covered
-(`PetStateMachine` transitions, `BehaviorController` bounds/turn-around
-logic). Not covered: `AnimationController`, `InputController`, anything in
-`src/main` (Electron-API-dependent, would need mocking Electron itself —
-not done here).
+Test coverage: `vitest` covers `PetStateMachine`, `BehaviorController`, and
+`ProgressionController` (all pure renderer-side logic). Not covered:
+`AnimationController`, `InputController`, anything in `src/main`
+(Electron-API-dependent, would need mocking Electron itself — not done
+here).
 
 ---
 

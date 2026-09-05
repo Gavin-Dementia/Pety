@@ -34,6 +34,22 @@
       "frameCount": 1,
       "fps": 1,
       "loop": false
+    },
+    "sleep": {
+      "sheet": "sprites/sleep.png",
+      "frameWidth": 32,
+      "frameHeight": 32,
+      "frameCount": 1,
+      "fps": 1,
+      "loop": false
+    },
+    "react": {
+      "sheet": "sprites/react.png",
+      "frameWidth": 32,
+      "frameHeight": 32,
+      "frameCount": 3,
+      "fps": 6,
+      "loop": false
     }
   },
   "behavior": {
@@ -44,6 +60,20 @@
     "walkMaxMs": 4000,
     "spriteScale": 3
   },
+  "progression": [
+    {
+      "id": "tier1-sit-and-poke",
+      "unlockAtMs": 60000,
+      "unlockedBehaviorStates": ["sit"],
+      "unlockedInteractions": ["poke"]
+    },
+    {
+      "id": "tier2-sleep",
+      "unlockAtMs": 300000,
+      "unlockedBehaviorStates": ["sleep"],
+      "unlockedInteractions": []
+    }
+  ],
   "attribution": {
     "author": "Window Pet project",
     "license": "CC0-1.0"

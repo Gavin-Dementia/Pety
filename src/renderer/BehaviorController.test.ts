@@ -85,4 +85,53 @@ describe('BehaviorController', () => {
     controller.setPosition({ x: 12, y: 34 });
     expect(controller.getPosition()).toEqual({ x: 12, y: 34 });
   });
+
+  it('picks an unlocked idle variant and still eventually starts walking', () => {
+    // idleMin/Max and walkMin/Max collapsed to fixed values so the random
+    // draw only decides which variant beginIdlePhase() picks, not durations.
+    vi.spyOn(Math, 'random').mockReturnValue(0.6); // pool ['idle','sit'] -> index 1 -> 'sit'
+    const sm = new PetStateMachine();
+    const controller = new BehaviorController(
+      sm,
+      makeBehavior({ idleMinMs: 1000, idleMaxMs: 1000, walkMinMs: 1000, walkMaxMs: 1000 }),
+      { x: 50, y: 50 },
+      () => ['sit'],
+    );
+    expect(sm.getState()).toBe('sit');
+
+    // The phase timer must keep counting down while sit-ing (IDLE_LIKE), not
+    // just while plain 'idle' — otherwise it would sit forever.
+    controller.update(1500, bounds, spriteWidth);
+    expect(sm.getState()).toBe('walk');
+  });
+
+  it('react() transitions to react from idle, endReaction() returns to a fresh idle phase', () => {
+    const sm = new PetStateMachine();
+    const controller = new BehaviorController(sm, makeBehavior(), { x: 50, y: 50 });
+    expect(sm.getState()).toBe('idle');
+
+    controller.react();
+    expect(sm.getState()).toBe('react');
+
+    controller.endReaction();
+    expect(sm.getState()).toBe('idle');
+  });
+
+  it('react() is a no-op while walking or dragged', () => {
+    const sm = new PetStateMachine();
+    const controller = new BehaviorController(
+      sm,
+      makeBehavior({ idleMinMs: 0, idleMaxMs: 0 }),
+      { x: 50, y: 50 },
+    );
+    controller.update(1, bounds, spriteWidth);
+    expect(sm.getState()).toBe('walk');
+    controller.react();
+    expect(sm.getState()).toBe('walk');
+
+    controller.interruptForDrag();
+    expect(sm.getState()).toBe('dragged');
+    controller.react();
+    expect(sm.getState()).toBe('dragged');
+  });
 });
