@@ -8,7 +8,7 @@ initial scaffold pass, not forgotten.
 
 ## Open — deferred
 
-### 1. Interactive input — earlier "verified" claim retracted; real human testing still needed
+### 1. Interactive input — click-through + drag now human-verified; poke/pet/doubleclick reaction firing still open
 
 **Correction to this file's own history:** an earlier pass here claimed
 click-through + drag were "automated-verified" via simulated OS-level mouse
@@ -45,49 +45,28 @@ temporarily add the `console-message` forwarding shown above in
 `petWindow.ts` plus `console.log` calls in `InputController.ts` to see
 renderer-side event flow in the terminal without attaching DevTools.
 
-**To verify (needs a human):** `npm run dev`, then: hover the sprite and
-confirm the cursor icon/behavior changes; drag it across the screen (both
-axes); move off the sprite and click a window underneath — it should
-register on that window, not the pet; quick-click (`poke`), double-click
-(`doubleclick`), or press-and-hold (`pet`) on the sprite once each is
-unlocked (see item 5 below) and confirm a brief reaction animation plays,
-auto-returning to idle when it finishes — and that a genuine double-click
-doesn't also separately register as two `poke`s. Note: this item is
-specifically about the click-through-forwarded `BrowserWindow` content —
-the tray and its Species submenu are native OS UI, not affected by this
-limitation, and *have* been genuinely verified (see "Fixed" below and item
-5).
+**Human-verified (2026-09-07):** click-through and drag both confirmed
+working correctly by the user — the sprite responds to real mouse
+click/drag input as designed.
 
-### 2. Packaging icons — Windows icon closed; `package:win` itself still blocked on this machine; macOS icon still open
+**Still open, needs a human:** quick-click (`poke`), double-click
+(`doubleclick`), and press-and-hold (`pet`) reactions weren't separately
+confirmed in this pass — still need someone to trigger each (once
+unlocked, see item 5 below) and confirm the brief reaction animation plays
+and auto-returns to idle, and that a genuine double-click doesn't also
+separately register as a `poke`. Note: this item is specifically about the
+click-through-forwarded `BrowserWindow` content — the tray and its Species
+submenu are native OS UI, not affected by this limitation, and *have* been
+genuinely verified (see "Fixed" below and item 5).
 
-`build-resources/icon.ico` is now generated
-(`scripts/generate-windows-ico.ps1`, packs the placeholder `icon.png` into
-a minimal valid ICO using the embedded-PNG format), and `electron-builder`
-does get as far as producing a working, correctly-icon'd
-`release/win-unpacked/Window Pet.exe` with `assets/` bundled correctly —
-confirmed by running it. But `npm run package:win`'s actual NSIS/portable
-installer step never runs: electron-builder unconditionally tries to fetch
-and extract a `winCodeSign` tool bundle (macOS code-signing libraries,
-irrelevant to an unsigned Windows build, but still fetched — setting
-`CSC_IDENTITY_AUTO_DISCOVERY=false` did not skip it) and that archive
-contains symlinks (`darwin/10.12/lib/libcrypto.dylib` etc.). Extracting
-symlinks needs Windows' `SeCreateSymbolicLinkPrivilege`, which this account
-doesn't have (no Developer Mode, not running elevated) — `7za.exe` fails
-with `Cannot create symbolic link: A required privilege is not held by the
-client.` on every retry, forever, for every one of several bundled signing
-components in turn. Confirmed as a real, reproducible failure (`exit
-code 1`), not just a slow download — a background run that superficially
-looked like it "completed" was actually killed by an external timeout
-mid-retry-loop, which is worth remembering: don't trust a background task's
-reported exit code here without checking the log ends in an actual
-success/failure line.
+### 2. macOS icon (`icon.icns`) still missing — Windows packaging now fully resolved
 
-**Real fix, not yet applied (needs the user, requires elevation I don't
-have):** enable Windows Developer Mode (Settings → Privacy & security →
-For developers) or run the packaging command from an elevated terminal —
-either grants the symlink privilege. `icon.icns` (macOS) is separately
-still missing — generating it needs `iconutil`/`sips`, only available on
-macOS.
+`icon.icns` doesn't exist yet — generating it needs `iconutil`/`sips`, only
+available on macOS, and this machine is Windows-only. `package:mac` remains
+untried entirely (also blocked generally, see item 3).
+
+The Windows half of this item (`package:win`'s NSIS/portable step failing
+on a symlink-extraction privilege error) is resolved — see "Fixed" below.
 
 ### 3. macOS / Linux never actually run
 
@@ -147,6 +126,36 @@ NSIS-installer step from item 2) and run the packaged exe directly.
 ---
 
 ## Fixed
+
+### `npm run package:win`'s NSIS/portable step failed on a symlink-extraction privilege error
+
+**Symptom:** `electron-builder` got as far as producing a working,
+correctly-icon'd `release/win-unpacked/Window Pet.exe` (`assets/` bundled
+correctly, confirmed by running it), but the actual NSIS/portable installer
+step never ran: it unconditionally tries to fetch and extract a
+`winCodeSign` tool bundle (macOS code-signing libraries, irrelevant to an
+unsigned Windows build but still fetched — `CSC_IDENTITY_AUTO_DISCOVERY=false`
+did not skip it), and that archive contains symlinks
+(`darwin/10.12/lib/libcrypto.dylib` etc.). Extracting symlinks needs
+Windows' `SeCreateSymbolicLinkPrivilege`; without it, `7za.exe` failed with
+`Cannot create symbolic link: A required privilege is not held by the
+client.` on every retry, forever, for every bundled signing component in
+turn. Confirmed as a real, reproducible failure (`exit code 1`), not just a
+slow download — a background run that superficially looked like it
+"completed" was actually killed by an external timeout mid-retry-loop,
+worth remembering: don't trust a background task's reported exit code here
+without checking the log ends in an actual success/failure line.
+
+**Fix:** the user enabled Windows Developer Mode (Settings → Privacy &
+security → For developers), which grants the symlink-creation privilege
+without needing an elevated terminal.
+
+**Verified:** re-ran `npm run package:win` — `winCodeSign` extracted
+without error, and it produced both `release/Window Pet Setup 0.1.0.exe`
+(NSIS installer, ~78MB) and `release/Window Pet 0.1.0.exe` (portable
+single-file build, ~78MB). Neither is code-signed (no signing certificate
+configured), so first launch will trip Windows SmartScreen — expected,
+not a bug.
 
 ### `file://` sprite images silently failed to load in dev
 

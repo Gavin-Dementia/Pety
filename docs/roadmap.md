@@ -48,7 +48,7 @@ Implemented in `src/main/petWindow.ts`:
 
 ## Milestone 4 — Click-through + manual drag
 
-**Status: Implemented, genuinely unverified — an earlier "automated-verified" claim here was wrong, see `bugs.md` #1**
+**Status: Human-verified (2026-09-07) — click-through and drag both confirmed working; see `bugs.md` #1**
 
 Implemented in `src/renderer/InputController.ts` + `petWindow.ts`'s
 `setClickThrough()`:
@@ -68,8 +68,9 @@ events at all in this environment (most likely filtered as
 non-hardware-origin input by whatever mechanism implements Electron's
 click-through forwarding — see `bugs.md` #1 for the full writeup). The
 earlier test's measured movement was almost certainly the pet's own
-autonomous walk phase, not the simulated drag. This needs real human
-testing, not another automation attempt.
+autonomous walk phase, not the simulated drag. This needed real human
+testing, not another automation attempt — done 2026-09-07, confirmed
+working (`bugs.md` #1).
 
 ---
 
@@ -143,20 +144,25 @@ live session. See `bugs.md`.
 
 ## Milestone 10 — Packaging
 
-**Status: Partial — Windows icon done, `package:win` blocked on this machine, macOS/Linux untried**
+**Status: Windows complete and verified; macOS/Linux still untried**
 
 `electron-builder.yml` is written (win/mac/linux targets, `extraResources`
 for `assets/`). `build-resources/icon.ico` now exists
 (`scripts/generate-windows-ico.ps1`) and produces a correct, working
 `release/win-unpacked/Window Pet.exe` with `assets/` bundled properly.
-However `npm run package:win`'s NSIS/portable installer step itself fails
-on this machine — a real, reproducible bug (not a missing-icon problem
-this time): electron-builder tries to extract a macOS code-signing tool
-bundle that contains symlinks, and this Windows account lacks the
-privilege to create them. Needs Developer Mode or an elevated terminal to
-actually fix — see `bugs.md` item 2 for the full trace. `icon.icns`
-(macOS) still doesn't exist; `package:mac`/`package:linux` untried
-entirely.
+
+`npm run package:win`'s NSIS/portable installer step originally failed on
+this machine — electron-builder tried to extract a macOS code-signing tool
+bundle containing symlinks, and this Windows account lacked the privilege
+to create them (`bugs.md`, "Fixed"). Resolved by the user enabling Windows
+Developer Mode; `npm run package:win` now produces both
+`release/Window Pet Setup 0.1.0.exe` (NSIS installer) and
+`release/Window Pet 0.1.0.exe` (portable single-file build), confirmed by
+a real run. Neither is code-signed, so first launch trips Windows
+SmartScreen — expected, not a bug.
+
+`icon.icns` (macOS) still doesn't exist — needs `iconutil`/`sips`, macOS
+only. `package:mac`/`package:linux` remain untried entirely (`bugs.md` #3).
 
 ---
 
@@ -620,10 +626,13 @@ converters) and stalled on licensing/toolchain constraints.
 
 ## Open / not yet started
 
-See `bugs.md` for the full list of deferred/open items — interactive
-verification (click-through/drag/poke/pet — confirmed blocked on synthetic
-input, not just untried), packaging icons, macOS/Linux testing. Tray
-visibility is now resolved (Milestone 14). The real creature art/IP
+See `bugs.md` for the full list of deferred/open items — click-through and
+drag are now human-verified (2026-09-07); poke/pet/doubleclick reaction
+firing is still open (synthetic input confirmed unable to test this, needs
+a human). Windows packaging is now resolved (Milestone 10); macOS icon
+generation, `package:mac`/`package:linux`, and macOS/Linux testing overall
+remain deferred, cross-platform parity intentionally set aside for now.
+Tray visibility is now resolved (Milestone 14). The real creature art/IP
 decision is still unresolved — see project memory / `CONTRIBUTING.md`'s
 art policy; the local species folder (Milestone 14) is the sanctioned
 place for personal art in the meantime.

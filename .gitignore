@@ -8,3 +8,4 @@ release/
 !.vscode/extensions.json
 .idea/
 .claude/
+.vs/
